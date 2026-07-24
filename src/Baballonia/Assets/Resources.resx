@@ -911,4 +911,31 @@ This is usually easy to fix! Just install the “Tracking Loss Fix” firmware b
   <data name="Tray_Exit" xml:space="preserve">
       <value>Exit</value>
   </data>
+  <data name="Calibration_Training_Preparing" xml:space="preserve">
+    <value>Preparing neural-network training…</value>
+  </data>
+  <data name="Calibration_Training_Progress" xml:space="preserve">
+    <value>Training eye model — epoch {0}/{1}, batch {2}/{3}</value>
+  </data>
+  <data name="Calibration_Training_Complete" xml:space="preserve">
+    <value>Eye-model training completed</value>
+  </data>
+  <data name="Settings_EyeWidenGain_Header" xml:space="preserve">
+    <value>Eye widen response</value>
+  </data>
+  <data name="Settings_EyeWidenGain_Description" xml:space="preserve">
+    <value>Amplifies the calibrated eye-widen value sent to VRChat. 1.00 is unchanged.</value>
+  </data>
+  <data name="Settings_EyeSquintGain_Header" xml:space="preserve">
+    <value>Eye squint response</value>
+  </data>
+  <data name="Settings_EyeSquintGain_Description" xml:space="preserve">
+    <value>Amplifies the calibrated eye-squint value sent to VRChat. 1.00 is unchanged.</value>
+  </data>
+  <data name="Settings_EyeBrowGain_Header" xml:space="preserve">
+    <value>Eyebrow response</value>
+  </data>
+  <data name="Settings_EyeBrowGain_Description" xml:space="preserve">
+    <value>Amplifies the calibrated eyebrow value sent to VRChat. 1.00 is unchanged.</value>
+  </data>
 </root>

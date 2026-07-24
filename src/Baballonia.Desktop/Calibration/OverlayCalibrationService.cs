@@ -17,9 +17,12 @@ public class OverlayTrainerService(
     ILocalSettingsService localSettingsService,
     EyePipelineManager eyePipelineManager,
     EyeCalibration eyeCalibration,
-    DataUploaderService dataUploaderService)
+    DataUploaderService dataUploaderService,
+    EyeDiagnosticRecorder eyeDiagnosticRecorder)
     : IVROverlay
 {
+
+    public event Action<CalibrationTrainingProgress>? TrainingProgressChanged;
 
     private readonly CancellationTokenSource _tokenSource = new();
 
@@ -64,17 +67,68 @@ public class OverlayTrainerService(
 
         var steps = routine switch
         {
-            CalibrationRoutine.Routines.BasicCalibration => eyeCalibration.BasicAllCalibration(),
-            CalibrationRoutine.Routines.BasicCalibrationNoTutorial => eyeCalibration.BasicAllCalibrationQuick(),
-            CalibrationRoutine.Routines.GazeOnly => eyeCalibration.GazeCalibration(),
-            CalibrationRoutine.Routines.BlinkOnly => eyeCalibration.BlinkCalibration(),
-            _ => eyeCalibration.BasicAllCalibration()
+            CalibrationRoutine.Routines.BasicCalibration => eyeCalibration.BasicAllCalibration(ReportTrainingProgress),
+            CalibrationRoutine.Routines.BasicCalibrationNoTutorial => eyeCalibration.BasicAllCalibrationQuick(ReportTrainingProgress),
+            CalibrationRoutine.Routines.GazeOnly => eyeCalibration.GazeCalibration(ReportTrainingProgress),
+            CalibrationRoutine.Routines.BlinkOnly => eyeCalibration.BlinkCalibration(ReportTrainingProgress),
+            _ => eyeCalibration.BasicAllCalibration(ReportTrainingProgress)
         };
-        foreach (var calibrationStep in steps)
+
+        var diagnosticTargetHandler = new DiagnosticTargetHandler(eyeDiagnosticRecorder);
+        var diagnosticActive = false;
+        try
         {
-            logger.LogInformation("Starting calibration step {Step}", calibrationStep.Name);
-            await calibrationStep.ExecuteAsync(messageDispatcher, _tokenSource.Token);
-            logger.LogInformation("Finished calibration step {Step}", calibrationStep.Name);
+            messageDispatcher.RegisterHandler(diagnosticTargetHandler);
+            var diagnosticPath = eyeDiagnosticRecorder.StartCalibrationRecording();
+            diagnosticActive = true;
+            logger.LogInformation("Recording local eye calibration diagnostic to {Path}", diagnosticPath);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not start the local eye calibration diagnostic");
+        }
+        try
+        {
+            foreach (var calibrationStep in steps)
+            {
+                if (calibrationStep.Name == "trainer" && diagnosticActive)
+                {
+                    try
+                    {
+                        var diagnostic = await eyeDiagnosticRecorder.StopAsync();
+                        logger.LogInformation("Eye calibration diagnostic saved to {Path} with {Samples} samples",
+                            diagnostic?.DirectoryPath, diagnostic?.SampleCount);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Could not finish the local eye calibration diagnostic");
+                    }
+                    diagnosticActive = false;
+                }
+
+                var isMeasurement = calibrationStep is BaseCaptureStep or PositionalAwareCaptureStep;
+                if (diagnosticActive)
+                    eyeDiagnosticRecorder.SetCalibrationPhase(calibrationStep.Name, isMeasurement);
+
+                logger.LogInformation("Starting calibration step {Step}", calibrationStep.Name);
+                await calibrationStep.ExecuteAsync(messageDispatcher, _tokenSource.Token);
+                logger.LogInformation("Finished calibration step {Step}", calibrationStep.Name);
+            }
+        }
+        finally
+        {
+            messageDispatcher.UnRegisterHandler(diagnosticTargetHandler);
+            if (diagnosticActive && eyeDiagnosticRecorder.IsRecording)
+            {
+                try
+                {
+                    await eyeDiagnosticRecorder.StopAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Could not finish the local eye calibration diagnostic");
+                }
+            }
         }
 
         var srcPath = Path.Combine(Utils.ModelDataDirectory, "tuned_temporal_eye_tracking_latest.onnx");
@@ -95,6 +149,18 @@ public class OverlayTrainerService(
         await overlayProgram.WaitForExitAsync();
 
         return (true, string.Empty);
+    }
+
+    private void ReportTrainingProgress(CalibrationTrainingProgress progress) =>
+        TrainingProgressChanged?.Invoke(progress);
+
+    private sealed class DiagnosticTargetHandler(EyeDiagnosticRecorder recorder) : PacketHandlerAdapter
+    {
+        public override void OnHmdPositionalData(HmdPositionalDataPacket packet) =>
+            recorder.UpdateCalibrationTarget(
+                packet.RoutinePitch, packet.RoutineYaw, packet.RoutineDistance,
+                packet.LeftEyePitch, packet.LeftEyeYaw,
+                packet.RightEyePitch, packet.RightEyeYaw);
     }
 
     private sealed class OverlayReadyHandler : PacketHandlerAdapter

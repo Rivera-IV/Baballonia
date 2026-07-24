@@ -103,6 +103,18 @@ public partial class AppSettingsViewModel : ViewModelBase
     [property: SavedSetting("AppSettings_StabilizeEyes", true)]
     private bool _stabilizeEyes;
 
+    [ObservableProperty]
+    [property: SavedSetting("AppSettings_EyeWidenGain", 1.0f)]
+    private float _eyeWidenGain;
+
+    [ObservableProperty]
+    [property: SavedSetting("AppSettings_EyeSquintGain", 1.0f)]
+    private float _eyeSquintGain;
+
+    [ObservableProperty]
+    [property: SavedSetting("AppSettings_EyeBrowGain", 1.0f)]
+    private float _eyeBrowGain;
+
     [ObservableProperty] private bool _onboardingEnabled;
 
     public string MachineID => _identityService.GetUniqueUserId();

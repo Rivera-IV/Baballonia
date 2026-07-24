@@ -229,7 +229,6 @@ public class GazeExpressionCaptureStep(
 {
     private readonly Stopwatch _posDataTimer = new();
     private readonly TimeSpan _posDataTimeout = TimeSpan.FromSeconds(0.2);
-
     public override void OnHmdPositionalData(HmdPositionalDataPacket positionalData)
     {
         if (!ShouldCollect)
@@ -262,6 +261,7 @@ public class GazeExpressionCaptureStep(
             }
         }
     }
+
 }
 
 public class BasePositionalAwareEyeCaptureStep(
@@ -353,23 +353,75 @@ public class CommandDispatchStep(string name) : ICalibrationStep
     }
 }
 
-public class TrainerCalibrationStep(ITrainerService overlayTrainer) : ICalibrationStep
+public class TrainerCalibrationStep(
+    ITrainerService overlayTrainer,
+    Action<CalibrationTrainingProgress>? progressCallback = null) : ICalibrationStep
 {
     public string Name => "trainer";
 
     public async Task ExecuteAsync(OverlayMessageDispatcher dispatcher, CancellationToken ct)
     {
         dispatcher.Dispatch(new RunVariableLenghtRoutinePacket(Name, TimeSpan.FromSeconds(120)));
-        var onProgressHandler = (TrainerProgressReportPacket packet) => { dispatcher.Dispatch(packet); };
+        // Godot creates the graph on its deferred UI queue. Give it one frame before sending the
+        // initial values; the overlay also buffers packets, but this avoids a visible ??? flash.
+        await Task.Delay(250, ct);
+        var epoch = 0;
+        var totalEpochs = 0;
+        var batch = 0;
+        var totalBatches = 0;
+        var loss = 0d;
+
+        void Report(CalibrationTrainingState state, double value) => progressCallback?.Invoke(
+            new CalibrationTrainingProgress(state, Math.Clamp(value, 0, 1), epoch, totalEpochs,
+                batch, totalBatches, loss));
+
+        void OnProgress(TrainerProgressReportPacket packet)
+        {
+            switch (packet.ProgressName)
+            {
+                case "GlobalEpoch":
+                    epoch = packet.CurrentProgress;
+                    totalEpochs = packet.TargetProgress;
+                    // The trainer's ordinary Epoch line restarts for each of its four sub-models.
+                    // Present the global 1..144 counter to VR instead.
+                    dispatcher.Dispatch(new TrainerProgressReportPacket(
+                        "Epoch", epoch, totalEpochs, loss));
+                    Report(CalibrationTrainingState.Running,
+                        totalEpochs > 0 ? (double)(epoch - 1) / totalEpochs : 0);
+                    break;
+                case "Batch":
+                    dispatcher.Dispatch(packet);
+                    batch = packet.CurrentProgress;
+                    totalBatches = packet.TargetProgress;
+                    loss = packet.Loss;
+                    var batchPart = totalBatches > 0 ? (double)batch / totalBatches : 0;
+                    Report(CalibrationTrainingState.Running,
+                        totalEpochs > 0 ? ((epoch - 1) + batchPart) / totalEpochs : 0);
+                    break;
+                case "Epoch":
+                    loss = packet.Loss;
+                    break;
+            }
+        }
+
+        var onProgressHandler = (TrainerProgressReportPacket packet) => OnProgress(packet);
         overlayTrainer.OnProgress += onProgressHandler;
         // The trainer first scans and indexes the capture file, which can take a while before its
         // first batch line. Show immediately that training has started instead of an idle graph.
+        dispatcher.Dispatch(new TrainerProgressReportPacket("Epoch", 0, 1, 0));
         dispatcher.Dispatch(new TrainerProgressReportPacket("Batch", 0, 1, 0));
-        overlayTrainer.RunTraining(Path.Combine(Utils.ModelDataDirectory, "user_cal.bin"),
-            Path.Combine(Utils.ModelDataDirectory, "tuned_temporal_eye_tracking_latest.onnx"));
-        await overlayTrainer.WaitAsync();
-
-        overlayTrainer.OnProgress -= onProgressHandler;
+        Report(CalibrationTrainingState.Preparing, 0);
+        try
+        {
+            overlayTrainer.RunTraining(Path.Combine(Utils.ModelDataDirectory, "user_cal.bin"),
+                Path.Combine(Utils.ModelDataDirectory, "tuned_temporal_eye_tracking_latest.onnx"));
+            await overlayTrainer.WaitAsync();
+            Report(CalibrationTrainingState.Completed, 1);
+        }
+        finally
+        {
+            overlayTrainer.OnProgress -= onProgressHandler;
+        }
     }
 }
 
@@ -425,12 +477,21 @@ public class EyeCalibration(
     ITrainerService trainer,
     IEyePipelineEventBus eyePipelineEventBus)
 {
-    public IEnumerable<ICalibrationStep> BasicAllCalibration()
+    public IEnumerable<ICalibrationStep> BasicAllCalibration(Action<CalibrationTrainingProgress>? trainingProgress = null)
     {
         List<ICalibrationStep> steps =
         [
+            new BaseTutorialStep("neutralstarttutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(6), "neutralstart"),
             new BaseTutorialStep("gazetutorial"),
-            new GazeCaptureStep(eyePipelineEventBus),
+            // The full routine needs enough time to cover the complete visible gaze range,
+            // including the extreme directions where an open pupil can become occluded.
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(60)),
+            new BaseTutorialStep("guidedgazetutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(24), "guidedgaze"),
+            new BaseTutorialStep("convergencetutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(14), "convergence",
+                CaptureFlags.FLAG_CONVERGENCE),
             // Gaze-valid section with FREE/RANDOM (unlabeled) expressions: real expressions in the
             // images while gaze is labeled by the reticle. The qpro trainer uses this as its
             // unlabeled-expression section (gaze_valid=1 -> used for gaze robustness, excluded from
@@ -442,41 +503,40 @@ public class EyeCalibration(
                 CaptureFlags.FLAG_GOOD_DATA |
                 CaptureFlags.FLAG_IN_MOVEMENT |
                 CaptureFlags.FLAG_VERSION_BIT1,
-                TimeSpan.FromSeconds(10), lid: 0
+                TimeSpan.FromSeconds(8), lid: 0
             ),
             new BaseTutorialStep("winklefttutorial", TimeSpan.FromSeconds(10)),
             eyeCaptureStepFactory.CreateAsymmetricLids("winkleft",
                 CaptureFlags.FLAG_GOOD_DATA |
                 CaptureFlags.FLAG_IN_MOVEMENT |
                 CaptureFlags.FLAG_VERSION_BIT1,
-                TimeSpan.FromSeconds(10), leftLid: 1, rightLid: 0
+                TimeSpan.FromSeconds(8), leftLid: 1, rightLid: 0
             ),
             new BaseTutorialStep("winkrighttutorial", TimeSpan.FromSeconds(10)),
             eyeCaptureStepFactory.CreateAsymmetricLids("winkright",
                 CaptureFlags.FLAG_GOOD_DATA |
                 CaptureFlags.FLAG_IN_MOVEMENT |
                 CaptureFlags.FLAG_VERSION_BIT1,
-                TimeSpan.FromSeconds(10), leftLid: 0, rightLid: 1
+                TimeSpan.FromSeconds(8), leftLid: 0, rightLid: 1
             ),
 
             new BaseTutorialStep("widentutorial", TimeSpan.FromSeconds(10)),
                 eyeCaptureStepFactory.CreateGazeExpression("widen",
-                CaptureFlags.FLAG_GOOD_DATA | CaptureFlags.FLAG_IN_MOVEMENT | CaptureFlags.FLAG_VERSION_BIT1, TimeSpan.FromSeconds(20), widen: 1, lid: 1),
+                CaptureFlags.FLAG_GOOD_DATA | CaptureFlags.FLAG_IN_MOVEMENT | CaptureFlags.FLAG_VERSION_BIT1, TimeSpan.FromSeconds(14), widen: 1, lid: 1),
 
             new BaseTutorialStep("squinttutorial", TimeSpan.FromSeconds(10)),
                 eyeCaptureStepFactory.CreateGazeExpression("squint",
-                CaptureFlags.FLAG_GOOD_DATA | CaptureFlags.FLAG_IN_MOVEMENT | CaptureFlags.FLAG_VERSION_BIT1, TimeSpan.FromSeconds(20), squint: 1, lid: 1),
+                CaptureFlags.FLAG_GOOD_DATA | CaptureFlags.FLAG_IN_MOVEMENT | CaptureFlags.FLAG_VERSION_BIT1, TimeSpan.FromSeconds(14), squint: 1, lid: 1),
 
             new BaseTutorialStep("browtutorial", TimeSpan.FromSeconds(10)),
                 eyeCaptureStepFactory.CreateGazeExpression("brow",
-                CaptureFlags.FLAG_GOOD_DATA | CaptureFlags.FLAG_IN_MOVEMENT | CaptureFlags.FLAG_VERSION_BIT1, TimeSpan.FromSeconds(20), browAngry: 1, lid: 1),
-            //steps.Add(new BaseTutorialStep("covergencetutorial"));
-            //steps.Add(_eyeCaptureStepFactory.Create("covergence",
-            //    CaptureFlags.FLAG_GOOD_DATA | CaptureFlags.FLAG_WHATEVER_NOT_IMPLEMENTED));
-
-            new MergeBinsStep("gaze.bin", "gazeexpr.bin", "blink.bin", "winkleft.bin", "winkright.bin", "widen.bin", "squint.bin", "brow.bin"),
+                CaptureFlags.FLAG_GOOD_DATA | CaptureFlags.FLAG_IN_MOVEMENT | CaptureFlags.FLAG_VERSION_BIT1, TimeSpan.FromSeconds(14), browAngry: 1, lid: 1),
+            new BaseTutorialStep("neutralendtutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(6), "neutralend"),
+            new MergeBinsStep("neutralstart.bin", "gaze.bin", "guidedgaze.bin", "convergence.bin", "gazeexpr.bin",
+                "blink.bin", "winkleft.bin", "winkright.bin", "widen.bin", "squint.bin", "brow.bin", "neutralend.bin"),
             // new MergeBinsStep("gaze.bin", "blink.bin"),
-            new TrainerCalibrationStep(trainer),
+            new TrainerCalibrationStep(trainer, trainingProgress),
             new CommandDispatchStep("close")
 
         ];
@@ -484,12 +544,19 @@ public class EyeCalibration(
         return steps;
     }
 
-    public IEnumerable<ICalibrationStep> BasicAllCalibrationQuick()
+    public IEnumerable<ICalibrationStep> BasicAllCalibrationQuick(Action<CalibrationTrainingProgress>? trainingProgress = null)
     {
         List<ICalibrationStep> steps =
         [
+            new BaseTutorialStep("neutralstarttutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(6), "neutralstart"),
             new BaseTutorialStep("gazetutorialshort", TimeSpan.FromSeconds(10)),
             new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(10)),
+            new BaseTutorialStep("guidedgazetutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(20), "guidedgaze"),
+            new BaseTutorialStep("convergencetutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(15), "convergence",
+                CaptureFlags.FLAG_CONVERGENCE),
             new BaseTutorialStep("gazeexprtutorial", TimeSpan.FromSeconds(10)),
             new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(15), "gazeexpr", CaptureFlags.FLAG_FREE_EXPRESSION),
             new BaseTutorialStep("blinktutorial", TimeSpan.FromSeconds(10)),
@@ -527,9 +594,12 @@ public class EyeCalibration(
                 eyeCaptureStepFactory.CreateGazeExpression("brow",
                 CaptureFlags.FLAG_GOOD_DATA | CaptureFlags.FLAG_IN_MOVEMENT | CaptureFlags.FLAG_VERSION_BIT1, TimeSpan.FromSeconds(20), browAngry: 1, lid: 1),
 
-            new MergeBinsStep("gaze.bin", "gazeexpr.bin", "blink.bin", "winkleft.bin", "winkright.bin", "widen.bin", "squint.bin", "brow.bin"),
+            new BaseTutorialStep("neutralendtutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(6), "neutralend"),
+            new MergeBinsStep("neutralstart.bin", "gaze.bin", "guidedgaze.bin", "convergence.bin", "gazeexpr.bin",
+                "blink.bin", "winkleft.bin", "winkright.bin", "widen.bin", "squint.bin", "brow.bin", "neutralend.bin"),
             // new MergeBinsStep("gaze.bin", "blink.bin"),
-            new TrainerCalibrationStep(trainer),
+            new TrainerCalibrationStep(trainer, trainingProgress),
             new CommandDispatchStep("close")
 
         ];
@@ -537,15 +607,24 @@ public class EyeCalibration(
         return steps;
     }
 
-    public IEnumerable<ICalibrationStep> GazeCalibration()
+    public IEnumerable<ICalibrationStep> GazeCalibration(Action<CalibrationTrainingProgress>? trainingProgress = null)
     {
         List<ICalibrationStep> steps =
         [
+            new BaseTutorialStep("neutralstarttutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(6), "neutralstart"),
             new BaseTutorialStep("gazetutorialshort", TimeSpan.FromSeconds(10)),
             new GazeCaptureStep(eyePipelineEventBus),
+            new BaseTutorialStep("guidedgazetutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(30), "guidedgaze"),
+            new BaseTutorialStep("convergencetutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(20), "convergence",
+                CaptureFlags.FLAG_CONVERGENCE),
 
-            new MergeBinsStep("gaze.bin", "blink.bin"),
-            new TrainerCalibrationStep(trainer),
+            new BaseTutorialStep("neutralendtutorial", TimeSpan.FromSeconds(10)),
+            new GazeCaptureStep(eyePipelineEventBus, TimeSpan.FromSeconds(6), "neutralend"),
+            new MergeBinsStep("neutralstart.bin", "gaze.bin", "guidedgaze.bin", "convergence.bin", "neutralend.bin"),
+            new TrainerCalibrationStep(trainer, trainingProgress),
             new CommandDispatchStep("close")
 
         ];
@@ -553,7 +632,7 @@ public class EyeCalibration(
         return steps;
     }
 
-    public IEnumerable<ICalibrationStep> BlinkCalibration()
+    public IEnumerable<ICalibrationStep> BlinkCalibration(Action<CalibrationTrainingProgress>? trainingProgress = null)
     {
         List<ICalibrationStep> steps =
         [
@@ -582,7 +661,7 @@ public class EyeCalibration(
             ),
 
             new MergeBinsStep("gaze.bin", "blink.bin", "winkleft.bin", "winkright.bin"),
-            new TrainerCalibrationStep(trainer),
+            new TrainerCalibrationStep(trainer, trainingProgress),
             new CommandDispatchStep("close")
 
         ];

@@ -451,6 +451,9 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private string _messagesOutPerSecCount;
 
     [ObservableProperty] private bool _shouldEnableEyeCalibration;
+    [ObservableProperty] private bool _isTrainingProgressVisible;
+    [ObservableProperty] private double _trainingProgressPercent;
+    [ObservableProperty] private string _trainingProgressText = string.Empty;
     public TextBlock SelectedCalibrationTextBlock;
 
     public bool IsRunningAsAdmin => Utils.HasAdmin;
@@ -496,6 +499,7 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
         _logger = logger;
         _dropOverlayService = dropOverlayService;
         _platformConnector = platformConnector;
+        _vrOverlay.TrainingProgressChanged += OnTrainingProgressChanged;
 
         _localSettings.Load(this);
 
@@ -794,6 +798,8 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task RequestVRCalibration()
     {
+        IsTrainingProgressVisible = false;
+        TrainingProgressPercent = 0;
         var res = await Task.Run(async () =>
             {
                 try
@@ -819,8 +825,28 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
         var previousText = SelectedCalibrationTextBlock.Text;
         SelectedCalibrationTextBlock.Text = res.Item2;
         await Task.Delay(5000);
+        IsTrainingProgressVisible = false;
         SelectedCalibrationTextBlock.Text = previousText;
         SelectedCalibrationTextBlock.Foreground = new SolidColorBrush(GetBaseHighColor());
+    }
+
+
+    private void OnTrainingProgressChanged(CalibrationTrainingProgress progress)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            IsTrainingProgressVisible = true;
+            TrainingProgressPercent = progress.Progress * 100.0;
+            TrainingProgressText = progress.State switch
+            {
+                CalibrationTrainingState.Preparing => Assets.Resources.Calibration_Training_Preparing,
+                CalibrationTrainingState.Completed => Assets.Resources.Calibration_Training_Complete,
+                _ when progress.TotalEpochs > 0 => string.Format(
+                    Assets.Resources.Calibration_Training_Progress,
+                    progress.Epoch, progress.TotalEpochs, progress.Batch, progress.TotalBatches),
+                _ => Assets.Resources.Calibration_Training_Preparing,
+            };
+        });
     }
 
     public Color GetBaseHighColor()
@@ -872,6 +898,8 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
     private void CleanupResources()
     {
         if (_disposed) return;
+        _disposed = true;
+        _vrOverlay.TrainingProgressChanged -= OnTrainingProgressChanged;
         FaceCamera.CamViewMode = CamViewMode.Tracking;
         LeftCamera.CamViewMode = CamViewMode.Tracking;
         RightCamera.CamViewMode = CamViewMode.Tracking;

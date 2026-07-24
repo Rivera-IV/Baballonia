@@ -7,6 +7,7 @@ public class OneEuroFilter : IFilter
 {
     private readonly float _initialMinCutoff;
     private readonly float _initialBeta;
+    private readonly Func<string, float>? _betaForKey;
     private bool _isInitialized;
 
     private string[] _keys;
@@ -27,10 +28,12 @@ public class OneEuroFilter : IFilter
     private OrderedFloatMap _source;
     private DateTime _tPrev;
 
-    public OneEuroFilter(float minCutoff = 1.0f, float beta = 0.0f)
+    public OneEuroFilter(float minCutoff = 1.0f, float beta = 0.0f,
+        Func<string, float>? betaForKey = null)
     {
         _initialMinCutoff = minCutoff;
         _initialBeta = beta;
+        _betaForKey = betaForKey;
         _isInitialized = false;
     }
 
@@ -132,7 +135,7 @@ public class OneEuroFilter : IFilter
             _keys[i] = kvp.Key;
             _xPrev[i] = kvp.Value;
             _minCutoff[i] = _initialMinCutoff;
-            _beta[i] = _initialBeta;
+            _beta[i] = _betaForKey?.Invoke(kvp.Key) ?? _initialBeta;
             _dCutoff[i] = 1.0f;
             _dxPrev[i] = 0.0f;
             i++;

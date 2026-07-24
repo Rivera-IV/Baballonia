@@ -1192,6 +1192,25 @@ namespace Baballonia.Assets {
                 return ResourceManager.GetString("Home_Eye_Calibration", resourceCulture);
             }
         }
+
+        public static string Calibration_Training_Preparing {
+            get {
+                return ResourceManager.GetString("Calibration_Training_Preparing", resourceCulture);
+            }
+        }
+
+        public static string Calibration_Training_Progress {
+            get {
+                return ResourceManager.GetString("Calibration_Training_Progress", resourceCulture);
+            }
+        }
+
+        public static string Calibration_Training_Complete {
+            get {
+                return ResourceManager.GetString("Calibration_Training_Complete", resourceCulture);
+            }
+        }
+
         
         /// <summary>
         ///   Looks up a localized string similar to Load Eye Model.
@@ -2423,6 +2442,42 @@ namespace Baballonia.Assets {
         public static string VRC_UseNativeEyeTracking_Header {
             get {
                 return ResourceManager.GetString("VRC_UseNativeEyeTracking_Header", resourceCulture);
+            }
+        }
+
+        public static string Settings_EyeWidenGain_Header {
+            get {
+                return ResourceManager.GetString("Settings_EyeWidenGain_Header", resourceCulture);
+            }
+        }
+
+        public static string Settings_EyeWidenGain_Description {
+            get {
+                return ResourceManager.GetString("Settings_EyeWidenGain_Description", resourceCulture);
+            }
+        }
+
+        public static string Settings_EyeSquintGain_Header {
+            get {
+                return ResourceManager.GetString("Settings_EyeSquintGain_Header", resourceCulture);
+            }
+        }
+
+        public static string Settings_EyeSquintGain_Description {
+            get {
+                return ResourceManager.GetString("Settings_EyeSquintGain_Description", resourceCulture);
+            }
+        }
+
+        public static string Settings_EyeBrowGain_Header {
+            get {
+                return ResourceManager.GetString("Settings_EyeBrowGain_Header", resourceCulture);
+            }
+        }
+
+        public static string Settings_EyeBrowGain_Description {
+            get {
+                return ResourceManager.GetString("Settings_EyeBrowGain_Description", resourceCulture);
             }
         }
     }

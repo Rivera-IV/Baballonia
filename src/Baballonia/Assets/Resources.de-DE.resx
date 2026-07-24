@@ -904,4 +904,31 @@ Dies ist normalerweise einfach zu beheben! Installieren Sie einfach die "Trackin
   <data name="Tray_Exit" xml:space="preserve">
     <value>Beenden</value>
   </data>
+  <data name="Calibration_Training_Preparing" xml:space="preserve">
+    <value>Training des neuronalen Netzes wird vorbereitet…</value>
+  </data>
+  <data name="Calibration_Training_Progress" xml:space="preserve">
+    <value>Augenmodell wird trainiert — Epoche {0}/{1}, Batch {2}/{3}</value>
+  </data>
+  <data name="Calibration_Training_Complete" xml:space="preserve">
+    <value>Training des Augenmodells abgeschlossen</value>
+  </data>
+  <data name="Settings_EyeWidenGain_Header" xml:space="preserve">
+    <value>Reaktion für große Augen</value>
+  </data>
+  <data name="Settings_EyeWidenGain_Description" xml:space="preserve">
+    <value>Verstärkt den kalibrierten Widen-Wert für VRChat. 1,00 lässt ihn unverändert.</value>
+  </data>
+  <data name="Settings_EyeSquintGain_Header" xml:space="preserve">
+    <value>Reaktion beim Zusammenkneifen</value>
+  </data>
+  <data name="Settings_EyeSquintGain_Description" xml:space="preserve">
+    <value>Verstärkt den kalibrierten Squint-Wert für VRChat. 1,00 lässt ihn unverändert.</value>
+  </data>
+  <data name="Settings_EyeBrowGain_Header" xml:space="preserve">
+    <value>Reaktion der Augenbrauen</value>
+  </data>
+  <data name="Settings_EyeBrowGain_Description" xml:space="preserve">
+    <value>Verstärkt den kalibrierten Augenbrauenwert für VRChat. 1,00 lässt ihn unverändert.</value>
+  </data>
 </root>

@@ -11,6 +11,8 @@ public interface IEventBus
     void Unsubscribe<T>(Action<T> callback);
 
     void Publish<T>(T data);
+
+    bool HasSubscribers<T>();
 }
 
 public interface IFacePipelineEventBus : IEventBus
@@ -71,5 +73,11 @@ public class GenericEventBus : IEventBus
                     callback(data);
             }
         }
+    }
+
+    public bool HasSubscribers<T>()
+    {
+        lock (_lock)
+            return _subscribers.TryGetValue(typeof(T), out var list) && list.Count > 0;
     }
 }

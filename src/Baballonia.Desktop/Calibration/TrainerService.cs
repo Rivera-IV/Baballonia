@@ -50,6 +50,19 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
         return new TrainerProgressReportPacket("Epoch", currentEpoch, totalEpochs, loss);
     }
 
+    [GeneratedRegex(@"===\s+Epoch\s+(\d+)/(\d+)\s+===")]
+    private static partial Regex ParseGlobalEpochRegex();
+    TrainerProgressReportPacket? ParseGlobalEpoch(string line)
+    {
+        var match = ParseGlobalEpochRegex().Match(line);
+        if (!match.Success)
+            return null;
+
+        var currentEpoch = int.Parse(match.Groups[1].Value);
+        var totalEpochs = int.Parse(match.Groups[2].Value);
+        return new TrainerProgressReportPacket("GlobalEpoch", currentEpoch, totalEpochs, 0);
+    }
+
     [GeneratedRegex(@"\s*Training\s+completed\s+successfully!\s*")]
     private static partial Regex ParseTrainingCompleteRegex();
     bool ParseTrainingComplete(string line)
@@ -67,7 +80,9 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
         if (dataReceivedEventArgs.Data == null)
             return;
 
-        var progress = ParseBatch(dataReceivedEventArgs.Data);
+        var progress = ParseGlobalEpoch(dataReceivedEventArgs.Data);
+        if (progress == null)
+            progress = ParseBatch(dataReceivedEventArgs.Data);
         if (progress == null)
             progress = ParseEpoch(dataReceivedEventArgs.Data);
 
@@ -79,6 +94,12 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
         var isCompleted = ParseTrainingComplete(dataReceivedEventArgs.Data);
         if (isCompleted)
             return;
+    }
+
+    void ErrorLineEventHandler(object sender, DataReceivedEventArgs dataReceivedEventArgs)
+    {
+        if (!string.IsNullOrWhiteSpace(dataReceivedEventArgs.Data))
+            logger.LogError("Trainer: {Error}", dataReceivedEventArgs.Data);
     }
 
     public void RunTraining(string usercalbinPath, string outputfilePath)
@@ -109,6 +130,7 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
                 Arguments = launchArgs,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 WorkingDirectory = basePath,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
@@ -120,14 +142,21 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
                 EnableRaisingEvents = true,
             };
             _trainerProcess.OutputDataReceived += NewLineEventHandler;
-            _trainerProcess.Exited += (sender, args) => { Interlocked.Exchange(ref _trainerProcess, null); };
+            _trainerProcess.ErrorDataReceived += ErrorLineEventHandler;
+            _trainerProcess.Exited += (sender, args) =>
+            {
+                if (_trainerProcess?.ExitCode is int exitCode && exitCode != 0)
+                    logger.LogError("Trainer exited with code {ExitCode}", exitCode);
+                Interlocked.Exchange(ref _trainerProcess, null);
+            };
 
             _trainerProcess.Start();
             _trainerProcess.BeginOutputReadLine();
+            _trainerProcess.BeginErrorReadLine();
         }
     }
 
-    public Task WaitAsync()
+    public async Task WaitAsync()
     {
         Process? process;
         lock (_lock)
@@ -135,9 +164,12 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
             process = _trainerProcess;
         }
 
-        return process != null
-            ? process.WaitForExitAsync()
-            : Task.CompletedTask;
+        if (process == null)
+            return;
+
+        await process.WaitForExitAsync();
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"Trainer exited with code {process.ExitCode}");
     }
 
     public void Dispose()

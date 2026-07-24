@@ -94,7 +94,15 @@ public class EyePipelineManager
 
         var eyeFilter = new OneEuroFilter(
             minCutoff: cutoff,
-            beta: speedCutoff
+            beta: speedCutoff,
+            // A blink is a short, intentional step rather than ordinary tracking noise. Keep the
+            // user's low-frequency smoothing for steady lids, but let fast lid changes react much
+            // sooner than gaze values. The higher beta only opens the filter while the value moves.
+            betaForKey: key => key.EndsWith("EyeLid", StringComparison.Ordinal)
+                ? Math.Max(speedCutoff, 4.0f)
+                : string.Equals(key, "/eyeConvergence", StringComparison.Ordinal)
+                    ? Math.Max(speedCutoff, 12.0f)
+                    : speedCutoff
         );
 
         lock (_pipeline.SyncRoot)

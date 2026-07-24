@@ -6,6 +6,8 @@ namespace Baballonia.Android.Calibration;
 
 public class AndroidOverlayTrainerCombo : IVROverlay, IVRCalibrator, IDisposable
 {
+    public event Action<CalibrationTrainingProgress>? TrainingProgressChanged;
+
     public Task EyeTrackingCalibrationRequested(string calibrationRoutine)
     {
         return Task.CompletedTask;

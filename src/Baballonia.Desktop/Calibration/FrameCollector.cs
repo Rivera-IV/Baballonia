@@ -82,6 +82,7 @@ public class PositionalBinCollector(uint headerFlags)
 
         CaptureBin.IO.CaptureBin.WriteAll(Path.Combine(Utils.ModelDataDirectory, path), copy);
     }
+
 }
 public class BinCollector(uint headerFlags)
 {

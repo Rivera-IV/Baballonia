@@ -25,6 +25,9 @@ public class ParameterSenderService : BackgroundService
     private volatile string _prefix = "";
     private volatile bool _sendNativeVrcEyeTracking;
     private volatile bool _useDfr;
+    private volatile float _eyeWidenGain = 1.0f;
+    private volatile float _eyeSquintGain = 1.0f;
+    private volatile float _eyeBrowGain = 1.0f;
     private readonly ConcurrentQueue<OscMessage> _vrcftQueue = new();
     private readonly ConcurrentQueue<OscMessage> _dfrQueue = new();
     // Reused drain buffer for the (single-threaded) sender loop.
@@ -67,6 +70,12 @@ public class ParameterSenderService : BackgroundService
                     _prefix = _localSettingsService.ReadSetting<string>("AppSettings_OSCPrefix");
                     _sendNativeVrcEyeTracking = _localSettingsService.ReadSetting<bool>("VRC_UseNativeTracking");
                     _useDfr = _localSettingsService.ReadSetting<bool>("AppSettings_UseDFR");
+                    _eyeWidenGain = Math.Clamp(_localSettingsService.ReadSetting(
+                        "AppSettings_EyeWidenGain", 1.0f), 0.0f, 3.0f);
+                    _eyeSquintGain = Math.Clamp(_localSettingsService.ReadSetting(
+                        "AppSettings_EyeSquintGain", 1.0f), 0.0f, 3.0f);
+                    _eyeBrowGain = Math.Clamp(_localSettingsService.ReadSetting(
+                        "AppSettings_EyeBrowGain", 1.0f), 0.0f, 3.0f);
                 }
                 await SendAndClearQueue(cancellationToken);
                 await Task.Delay(10, cancellationToken);
@@ -95,8 +104,17 @@ public class ParameterSenderService : BackgroundService
             float weight = expression.Value;
             var settings = _calibrationService.GetExpressionSettings(expression.Key);
 
+            // Calibration ranges can be narrow. Clamp the remapped value so small prediction noise
+            // near either endpoint cannot become an oversized OSC eye/lid value.
+            var remappedWeight = weight.Remap(settings.Lower, settings.Upper, settings.Min, settings.Max);
+            if (expression.Key is "/leftEyeWiden" or "/rightEyeWiden")
+                remappedWeight *= _eyeWidenGain;
+            else if (expression.Key is "/leftEyeSquint" or "/rightEyeSquint")
+                remappedWeight *= _eyeSquintGain;
+            else if (expression.Key is "/leftEyeBrow" or "/rightEyeBrow")
+                remappedWeight *= _eyeBrowGain;
             var msg = new OscMessage(_prefix + expression.Key,
-                weight.Remap(settings.Lower, settings.Upper, settings.Min, settings.Max));
+                Math.Clamp(remappedWeight, settings.Min, settings.Max));
             _vrcftQueue.Enqueue(msg);
         }
 

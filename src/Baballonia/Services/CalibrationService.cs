@@ -23,8 +23,6 @@ public class CalibrationService : ICalibrationService
         { "LeftEyeWiden", "/leftEyeWiden" },
         { "LeftEyeSquint", "/leftEyeSquint" },
         { "LeftEyeBrow", "/leftEyeBrow" },
-        { "RightEyeX", "/rightEyeX" },
-        { "RightEyeY", "/rightEyeY" },
         { "RightEyeLid", "/rightEyeLid" },
         { "RightEyeWiden", "/rightEyeWiden" },
         { "RightEyeSquint", "/rightEyeSquint" },
@@ -147,6 +145,7 @@ public class CalibrationService : ICalibrationService
     private void Load()
     {
         var parameters = _localSettingsService.ReadSetting<ConcurrentDictionary<string, CalibrationParameter>?>("CalibrationParams");
+        var migratedLegacyRightEyeRange = false;
         _expressionSettings.Clear();
         if (parameters == null)
         {
@@ -166,6 +165,18 @@ public class CalibrationService : ICalibrationService
             foreach (var parameterName in eyeParameterNames)
             {
                 var param = parameters.GetValueOrDefault(parameterName);
+
+                // Older settings classified the right-eye gaze axes as face expressions as well.
+                // The later face-expression pass consequently overwrote their signed -1..1 range
+                // with 0..1. With output clamping enabled this removes the negative half of the
+                // right eye's motion, including its inward convergence direction.
+                if ((parameterName == "/rightEyeX" || parameterName == "/rightEyeY") &&
+                    param is { Min: 0f, Max: 1f })
+                {
+                    param = new CalibrationParameter(-1f, 1f, -1f, 1f);
+                    migratedLegacyRightEyeRange = true;
+                }
+
                 _expressionSettings[parameterName] = param ?? new CalibrationParameter(-1f, 1f, -1f, 1f);
             }
             var faceParameterNames = _faceExpressionMap.Values;
@@ -174,6 +185,9 @@ public class CalibrationService : ICalibrationService
                 var param = parameters.GetValueOrDefault(parameterName);
                 _expressionSettings[parameterName] = param ?? new CalibrationParameter(0f, 1f, 0f, 1f);
             }
+
+            if (migratedLegacyRightEyeRange)
+                SaveAsync();
         }
     }
 

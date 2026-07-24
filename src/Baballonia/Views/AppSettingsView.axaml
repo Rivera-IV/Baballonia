@@ -342,6 +342,51 @@
           SettingToggled="{Binding StabilizeEyes, Mode=TwoWay}" />
 
       <controls:SettingsBlock
+          Title="{x:Static assets:Resources.Settings_EyeWidenGain_Header}"
+          Description="{x:Static assets:Resources.Settings_EyeWidenGain_Description}"
+          IconPath="EyeTrackingRegular">
+        <controls:SettingsBlock.SettingsContent>
+          <NumericUpDown
+              Width="100"
+              FormatString="F2"
+              Increment="0.05"
+              Minimum="0"
+              Maximum="3"
+              Value="{Binding EyeWidenGain, Mode=TwoWay}" />
+        </controls:SettingsBlock.SettingsContent>
+      </controls:SettingsBlock>
+
+      <controls:SettingsBlock
+          Title="{x:Static assets:Resources.Settings_EyeSquintGain_Header}"
+          Description="{x:Static assets:Resources.Settings_EyeSquintGain_Description}"
+          IconPath="EyeTrackingRegular">
+        <controls:SettingsBlock.SettingsContent>
+          <NumericUpDown
+              Width="100"
+              FormatString="F2"
+              Increment="0.05"
+              Minimum="0"
+              Maximum="3"
+              Value="{Binding EyeSquintGain, Mode=TwoWay}" />
+        </controls:SettingsBlock.SettingsContent>
+      </controls:SettingsBlock>
+
+      <controls:SettingsBlock
+          Title="{x:Static assets:Resources.Settings_EyeBrowGain_Header}"
+          Description="{x:Static assets:Resources.Settings_EyeBrowGain_Description}"
+          IconPath="EyeTrackingRegular">
+        <controls:SettingsBlock.SettingsContent>
+          <NumericUpDown
+              Width="100"
+              FormatString="F2"
+              Increment="0.05"
+              Minimum="0"
+              Maximum="3"
+              Value="{Binding EyeBrowGain, Mode=TwoWay}" />
+        </controls:SettingsBlock.SettingsContent>
+      </controls:SettingsBlock>
+
+      <controls:SettingsBlock
         Title="{x:Static assets:Resources.Settings_LogLevel_Header}"
         Description="{x:Static assets:Resources.Settings_LogLevel_Description}"
         IconPath="SendLoggingRegular">

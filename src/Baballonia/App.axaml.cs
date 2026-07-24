@@ -115,6 +115,7 @@ public partial class App : Application
             services.AddSingleton<EyeProcessingPipeline>();
             services.AddSingleton<EyePipelineManager>();
             services.AddSingleton<IEyePipelineEventBus, EyePipelineEventBus>();
+            services.AddSingleton<EyeDiagnosticRecorder>();
             services.AddSingleton<SingleCameraSourceFactory>();
             services.AddSingleton<FirmwareSessionFactory>();
 
@@ -220,6 +221,22 @@ public partial class App : Application
         // Initialize settings
         var localSettings = Ioc.Default.GetService<ILocalSettingsService>();
 
+        if (localSettings?.ReadSetting<bool>("AppSettings_LiveEyeDiagnostic", false) == true)
+        {
+            try
+            {
+                var recorder = Ioc.Default.GetRequiredService<EyeDiagnosticRecorder>();
+                var directory = recorder.StartLiveRecording();
+                Ioc.Default.GetService<ILogger<App>>()?.LogInformation(
+                    "Recording local live eye diagnostic to {Path}", directory);
+            }
+            catch (Exception exception)
+            {
+                Ioc.Default.GetService<ILogger<App>>()?.LogError(
+                    exception, "Could not start local live eye diagnostic");
+            }
+        }
+
         Assembly assembly = Assembly.GetExecutingAssembly();
         Version version = assembly.GetName().Version!;
         var logger = Ioc.Default.GetService<ILogger<MainWindow>>();
@@ -277,6 +294,18 @@ public partial class App : Application
 
     private void OnShutdown(object? sender, EventArgs e)
     {
+        var eyeDiagnosticRecorder = Ioc.Default.GetService<EyeDiagnosticRecorder>();
+        if (eyeDiagnosticRecorder?.IsRecording == true)
+        {
+            try
+            {
+                eyeDiagnosticRecorder.StopAsync().GetAwaiter().GetResult();
+            }
+            catch
+            {
+                // Diagnostics must never prevent shutdown.
+            }
+        }
         if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime) return;
         _shuttingDown = true;
         if (IsTeardDown) return;
