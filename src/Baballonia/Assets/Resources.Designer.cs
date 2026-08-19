@@ -1609,24 +1609,6 @@ namespace Baballonia.Assets {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Records eye images and tracking values locally until disabled.
-        /// </summary>
-        public static string Settings_LiveEyeDiagnostic_Description {
-            get {
-                return ResourceManager.GetString("Settings_LiveEyeDiagnostic_Description", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Record live eye diagnostics.
-        /// </summary>
-        public static string Settings_LiveEyeDiagnostic_Header {
-            get {
-                return ResourceManager.GetString("Settings_LiveEyeDiagnostic_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Enable Pimax4All dynamic foveated rendering for select titles.
         /// </summary>
         public static string Settings_DFR_Description {

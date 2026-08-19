@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.Threading;
 using Baballonia.Contracts;
 using Baballonia.Services;
 using Baballonia.Services.events;
@@ -35,10 +37,10 @@ public class RegistrationMonitorEyeFrameNormalizerTests
             InterpolationFlags.Linear, BorderTypes.Reflect101);
         using var shiftedStereo = MergeStereo(shiftedEye, shiftedEye);
         EyeFrameNormalizationState state = default;
-        // Three consistent 10 Hz measurements are required before input correction is enabled.
-        // Until then, uncertain registration must leave the model input byte-for-byte unchanged.
+        // Before the first scheduled measurement, uncertain registration must leave the model input
+        // byte-for-byte unchanged.
         using var shiftedBeforeConfirmation = shiftedStereo.Clone();
-        for (var index = 0; index < 17; index++)
+        for (var index = 0; index < 5; index++)
             state = normalizer.Apply(shiftedStereo);
         using (var prematureDifference = new Mat())
         {
@@ -47,7 +49,9 @@ public class RegistrationMonitorEyeFrameNormalizerTests
             Assert.AreEqual(0, Cv2.CountNonZero(flattenedPrematureDifference));
         }
         Assert.IsFalse(state.Left.CorrectionApplied);
-        state = normalizer.Apply(shiftedStereo);
+        state = WaitForState(
+            normalizer, shiftedStereo,
+            value => value.Left.CorrectionApplied && value.Right.CorrectionApplied);
 
         using var difference = new Mat();
         Cv2.Absdiff(shiftedStereo, referenceStereo, difference);
@@ -91,9 +95,7 @@ public class RegistrationMonitorEyeFrameNormalizerTests
 
         using var featurelessEye = new Mat(128, 128, MatType.CV_8UC1, Scalar.All(127));
         using var featurelessStereo = MergeStereo(featurelessEye, featurelessEye);
-        EyeFrameNormalizationState state = default;
-        for (var index = 0; index < 18; index++)
-            state = normalizer.Apply(featurelessStereo);
+        var state = PumpFor(normalizer, featurelessStereo, TimeSpan.FromMilliseconds(250));
 
         Assert.AreEqual(0f, state.Left.Confidence);
         Assert.AreEqual(0f, state.Right.Confidence);
@@ -112,9 +114,9 @@ public class RegistrationMonitorEyeFrameNormalizerTests
         for (var index = 0; index < requiredFrames; index++)
             ApplyAndConfirmEyes(normalizer, stereo);
 
-        EyeFrameNormalizationState state = default;
-        for (var index = 0; index < 18; index++)
-            state = normalizer.Apply(stereo);
+        var state = WaitForState(
+            normalizer, stereo,
+            value => value.Left.Confidence > 0.9f && value.Right.Confidence > 0.9f);
 
         Assert.IsGreaterThan(0.9f, state.Left.Confidence);
         Assert.IsGreaterThan(0.9f, state.Right.Confidence);
@@ -140,9 +142,9 @@ public class RegistrationMonitorEyeFrameNormalizerTests
              index++)
             ApplyAndConfirmEyes(normalizer, stereo);
 
-        EyeFrameNormalizationState state = default;
-        for (var index = 0; index < 18; index++)
-            state = normalizer.Apply(stereo);
+        var state = WaitForState(
+            normalizer, stereo,
+            value => value.Left.Confidence > 0.9f && value.Right.Confidence > 0.9f);
 
         Assert.IsGreaterThan(0.9f, state.Left.Confidence);
         Assert.IsGreaterThan(0.9f, state.Right.Confidence);
@@ -166,9 +168,9 @@ public class RegistrationMonitorEyeFrameNormalizerTests
 
         normalizer.ResetForCameraChange();
         CaptureStartupReference(normalizer, movedStereo);
-        EyeFrameNormalizationState state = default;
-        for (var index = 0; index < 18; index++)
-            state = normalizer.Apply(movedStereo);
+        var state = WaitForState(
+            normalizer, movedStereo,
+            value => value.Left.Confidence > 0.9f);
 
         Assert.IsGreaterThan(0.9f, state.Left.Confidence);
         Assert.IsFalse(state.Left.CorrectionApplied);
@@ -200,8 +202,9 @@ public class RegistrationMonitorEyeFrameNormalizerTests
         Assert.AreEqual(0f, state.Left.Confidence);
 
         ApplyAndConfirmEyes(normalizer, stereo);
-        for (var index = 0; index < 18; index++)
-            state = normalizer.Apply(stereo);
+        state = WaitForState(
+            normalizer, stereo,
+            value => value.Left.Confidence > 0.9f);
         Assert.IsGreaterThan(0.9f, state.Left.Confidence);
     }
 
@@ -235,6 +238,40 @@ public class RegistrationMonitorEyeFrameNormalizerTests
     {
         normalizer.Apply(stereo);
         normalizer.ObserveTrackingResult(CreateVisibleEyeResult());
+    }
+
+    private static EyeFrameNormalizationState WaitForState(
+        RegistrationMonitorEyeFrameNormalizer normalizer,
+        Mat stereo,
+        Func<EyeFrameNormalizationState, bool> predicate)
+    {
+        var timeout = Stopwatch.StartNew();
+        EyeFrameNormalizationState state = default;
+        while (timeout.Elapsed < TimeSpan.FromSeconds(3))
+        {
+            state = normalizer.Apply(stereo);
+            if (predicate(state))
+                return state;
+            Thread.Sleep(1);
+        }
+
+        Assert.Fail("The asynchronous registration measurement did not complete in time.");
+        return state;
+    }
+
+    private static EyeFrameNormalizationState PumpFor(
+        RegistrationMonitorEyeFrameNormalizer normalizer,
+        Mat stereo,
+        TimeSpan duration)
+    {
+        var timer = Stopwatch.StartNew();
+        EyeFrameNormalizationState state = default;
+        while (timer.Elapsed < duration)
+        {
+            state = normalizer.Apply(stereo);
+            Thread.Sleep(1);
+        }
+        return state;
     }
 
     private static OrderedFloatMap CreateVisibleEyeResult(

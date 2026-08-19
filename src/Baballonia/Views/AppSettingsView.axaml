@@ -465,13 +465,6 @@
           IconPath="WindowDevToolsRegular"
           SettingToggled="{Binding ShowDebugMenu, Mode=TwoWay}" />
 
-      <controls:SettingsToggle
-          IsVisible="{Binding DebugMenuToggleVisible}"
-          Title="{x:Static assets:Resources.Settings_LiveEyeDiagnostic_Header}"
-          Description="{x:Static assets:Resources.Settings_LiveEyeDiagnostic_Description}"
-          IconPath="WindowDevToolsRegular"
-          SettingToggled="{Binding LiveEyeDiagnostic, Mode=TwoWay}" />
-
     </StackPanel>
   </ScrollViewer>
 </UserControl>

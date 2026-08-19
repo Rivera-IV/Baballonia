@@ -388,6 +388,10 @@ public class EyeProcessingPipeline(
         // it prevents a pupil near the camera edge from repeatedly dropping in and out each frame.
         private const float PupilMissingThreshold = 0.03f;
         private const float PupilRecoveredThreshold = 0.08f;
+        // Visibility is a learned auxiliary output and the live trace contains isolated low samples
+        // even with a fully open lid. Require a short streak before declaring an open pupil lost;
+        // actual blinks and winks still transition immediately through their independent lid signal.
+        private const int PupilLossConfirmationFrames = 3;
         private const float PupilFollowStepPerFrame = 0.12f;
         private const float RecoveryStepPerFrame = 0.12f;
         private const float MaximumNormalInwardDifference = 0.08f;
@@ -420,6 +424,8 @@ public class EyeProcessingPipeline(
         private bool _recoveryUsesVisibleEye;
         private bool _leftPupilReliable = true;
         private bool _rightPupilReliable = true;
+        private int _leftPupilMissingFrames;
+        private int _rightPupilMissingFrames;
         private float _heldLeftX;
         private float _heldRightX;
         private float _heldY;
@@ -463,14 +469,43 @@ public class EyeProcessingPipeline(
 
             var wasLeftPupilReliable = _leftPupilReliable;
             var wasRightPupilReliable = _rightPupilReliable;
-            _leftPupilReliable = UpdatePupilReliability(
-                wasLeftPupilReliable, leftPupilVisibility);
-            _rightPupilReliable = UpdatePupilReliability(
-                wasRightPupilReliable, rightPupilVisibility);
+            if (leftLid <= CoveredOpenness)
+            {
+                _leftPupilReliable = false;
+                _leftPupilMissingFrames = PupilLossConfirmationFrames;
+            }
+            else
+            {
+                _leftPupilReliable = UpdatePupilReliability(
+                    wasLeftPupilReliable, leftPupilVisibility,
+                    ref _leftPupilMissingFrames);
+            }
+            if (rightLid <= CoveredOpenness)
+            {
+                _rightPupilReliable = false;
+                _rightPupilMissingFrames = PupilLossConfirmationFrames;
+            }
+            else
+            {
+                _rightPupilReliable = UpdatePupilReliability(
+                    wasRightPupilReliable, rightPupilVisibility,
+                    ref _rightPupilMissingFrames);
+            }
+
+            // A low visibility sample is not trusted as a gaze source immediately, but it needs the
+            // confirmation streak above before it is allowed to change the long-lived eye state.
+            // Reliability is intentionally slower than frame-local usability: it protects the
+            // reopening state machine from a single noisy sample. It must not, however, suppress
+            // a currently usable open-eye observation merely because the visibility head has not
+            // yet crossed its higher hysteresis threshold. The live trace otherwise produced
+            // 0.25-1.44 second gaze freezes while both lid heads remained fully open.
+            var leftPupilAvailable = !IsPupilMissing(leftPupilVisibility);
+            var rightPupilAvailable = !IsPupilMissing(rightPupilVisibility);
 
             UpdateState(
                 leftX, rightX, y, leftLid, rightLid,
                 _leftPupilReliable, _rightPupilReliable,
+                leftPupilAvailable, rightPupilAvailable,
                 !wasLeftPupilReliable && _leftPupilReliable,
                 !wasRightPupilReliable && _rightPupilReliable);
 
@@ -479,7 +514,7 @@ public class EyeProcessingPipeline(
                 case EyeState.Open:
                     ApplyOpenGaze(
                         ref leftX, ref rightX, ref y, leftY, rightY,
-                        _leftPupilReliable, _rightPupilReliable,
+                        leftPupilAvailable, rightPupilAvailable,
                         trainedConvergence, stabilizeEyes);
                     break;
 
@@ -548,6 +583,8 @@ public class EyeProcessingPipeline(
             _recoveryUsesVisibleEye = false;
             _leftPupilReliable = true;
             _rightPupilReliable = true;
+            _leftPupilMissingFrames = 0;
+            _rightPupilMissingFrames = 0;
             _heldLeftX = 0.0f;
             _heldRightX = 0.0f;
             _heldY = 0.0f;
@@ -565,21 +602,26 @@ public class EyeProcessingPipeline(
             float rightLid,
             bool leftPupilReliable,
             bool rightPupilReliable,
+            bool leftPupilAvailable,
+            bool rightPupilAvailable,
             bool leftPupilRecovered,
             bool rightPupilRecovered)
         {
             var leftCovered = leftLid <= CoveredOpenness;
             var rightCovered = rightLid <= CoveredOpenness;
-            var leftVisible = leftLid >= SourceVisibleOpenness && leftPupilReliable;
-            var rightVisible = rightLid >= SourceVisibleOpenness && rightPupilReliable;
-            var leftRecovered = leftLid >= RecoveredOpenness && leftPupilReliable;
-            var rightRecovered = rightLid >= RecoveredOpenness && rightPupilReliable;
+            var leftVisible = leftLid >= SourceVisibleOpenness && leftPupilAvailable;
+            var rightVisible = rightLid >= SourceVisibleOpenness && rightPupilAvailable;
+            var leftRecovered = leftLid >= RecoveredOpenness && leftPupilAvailable;
+            var rightRecovered = rightLid >= RecoveredOpenness && rightPupilAvailable;
 
             switch (_state)
             {
                 case EyeState.Open:
-                    if ((!leftPupilReliable && !rightPupilReliable) ||
-                        (leftCovered && rightCovered))
+                    // Visibility alone cannot prove a blink: this model's auxiliary visibility
+                    // heads can remain low during ordinary open-eye gaze. Keep holding unusable
+                    // coordinates frame-locally in ApplyOpenGaze, but reserve the long-lived
+                    // BothClosed state for actual lid closure.
+                    if (leftCovered && rightCovered)
                         EnterBothClosed();
                     else if (leftCovered && rightVisible)
                         EnterCandidate(EyeState.LeftWinkCandidate);
@@ -821,7 +863,11 @@ public class EyeProcessingPipeline(
             rightX = MoveTowards(_lastOutputRightX, desiredRightX, RecoveryStepPerFrame);
             y = MoveTowards(_lastOutputY, desiredY, RecoveryStepPerFrame);
 
-            if (_recoveryBlendFrame >= BothEyeRecoveryBlendFrames &&
+            // Do not hand control back to independent open-eye coordinates while one pupil is
+            // still only weakly visible after a real bilateral blink. Remaining in RecoverBoth is
+            // not a freeze: both coordinates continue to follow the reliable eye above.
+            if (leftPupilReliable && rightPupilReliable &&
+                _recoveryBlendFrame >= BothEyeRecoveryBlendFrames &&
                 NearlyEqual(leftX, desiredLeftX) &&
                 NearlyEqual(rightX, desiredRightX) &&
                 NearlyEqual(y, desiredY))
@@ -940,6 +986,14 @@ public class EyeProcessingPipeline(
                 return;
             }
 
+            if (!leftPupilReliable && !rightPupilReliable)
+            {
+                leftX = _lastOutputLeftX;
+                rightX = _lastOutputRightX;
+                y = _lastOutputY;
+                return;
+            }
+
             if (!constrainBinocularDifference)
                 return;
 
@@ -959,17 +1013,41 @@ public class EyeProcessingPipeline(
             rightX = midpoint - constrainedDifference / 2.0f;
         }
 
-        private static bool UpdatePupilReliability(bool wasReliable, float? visibility)
+        private static bool UpdatePupilReliability(
+            bool wasReliable,
+            float? visibility,
+            ref int missingFrames)
         {
             if (!visibility.HasValue)
+            {
+                missingFrames = 0;
                 return true;
-            if (!float.IsFinite(visibility.Value))
-                return false;
+            }
 
-            return wasReliable
-                ? visibility.Value > PupilMissingThreshold
-                : visibility.Value >= PupilRecoveredThreshold;
+            var missing = !float.IsFinite(visibility.Value) ||
+                          visibility.Value <= PupilMissingThreshold;
+            if (wasReliable)
+            {
+                if (!missing)
+                {
+                    missingFrames = 0;
+                    return true;
+                }
+
+                missingFrames = Math.Min(
+                    missingFrames + 1, PupilLossConfirmationFrames);
+                return missingFrames < PupilLossConfirmationFrames;
+            }
+
+            missingFrames = 0;
+            return float.IsFinite(visibility.Value) &&
+                   visibility.Value >= PupilRecoveredThreshold;
         }
+
+        private static bool IsPupilMissing(float? visibility) =>
+            visibility.HasValue &&
+            (!float.IsFinite(visibility.Value) ||
+             visibility.Value <= PupilMissingThreshold);
 
         private void ResetConvergence()
         {

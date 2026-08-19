@@ -920,10 +920,4 @@ This is usually easy to fix! Just install the “Tracking Loss Fix” firmware b
   <data name="Settings_EyeBrowGain_Description" xml:space="preserve">
     <value>Amplifies the calibrated eyebrow value sent to VRChat. 1.00 is unchanged.</value>
   </data>
-  <data name="Settings_LiveEyeDiagnostic_Header" xml:space="preserve">
-    <value>Record live eye diagnostics</value>
-  </data>
-  <data name="Settings_LiveEyeDiagnostic_Description" xml:space="preserve">
-    <value>Records eye images and tracking values locally until disabled. Nothing is uploaded. Long recordings can use a lot of disk space.</value>
-  </data>
 </root>

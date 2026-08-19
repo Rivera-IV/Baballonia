@@ -913,10 +913,4 @@ Dies ist normalerweise einfach zu beheben! Installieren Sie einfach die "Trackin
   <data name="Settings_EyeBrowGain_Description" xml:space="preserve">
     <value>Verstärkt den kalibrierten Augenbrauenwert für VRChat. 1,00 lässt ihn unverändert.</value>
   </data>
-  <data name="Settings_LiveEyeDiagnostic_Header" xml:space="preserve">
-    <value>Live-Augendiagnose aufzeichnen</value>
-  </data>
-  <data name="Settings_LiveEyeDiagnostic_Description" xml:space="preserve">
-    <value>Zeichnet Augenbilder und Trackingwerte lokal auf, bis der Haken entfernt wird. Es wird nichts hochgeladen. Lange Aufnahmen können viel Speicherplatz belegen.</value>
-  </data>
 </root>

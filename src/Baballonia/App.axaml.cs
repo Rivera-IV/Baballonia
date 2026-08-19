@@ -222,14 +222,13 @@ public partial class App : Application
         _host = hostBuilder.Build();
         Ioc.Default.ConfigureServices(_host.Services);
 
-        // Initialize settings
-        var localSettings = Ioc.Default.GetService<ILocalSettingsService>();
-
+        // Full-rate eye recordings are intentionally developer-only. They can consume a large
+        // amount of disk space and add diagnostic overhead, so production users should never
+        // enable them accidentally through a persisted UI setting.
         var diagnosticEnvironmentOverride = string.Equals(
             Environment.GetEnvironmentVariable("BABALLONIA_LIVE_EYE_DIAGNOSTIC"),
             "1", StringComparison.Ordinal);
-        if (diagnosticEnvironmentOverride ||
-            localSettings?.ReadSetting<bool>("AppSettings_LiveEyeDiagnostic", false) == true)
+        if (diagnosticEnvironmentOverride)
         {
             try
             {

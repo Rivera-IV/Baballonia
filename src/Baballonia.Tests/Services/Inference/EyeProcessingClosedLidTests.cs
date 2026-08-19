@@ -535,6 +535,28 @@ public class EyeProcessingClosedLidTests
     }
 
     [TestMethod]
+    public void SingleOpenEyeVisibilityDropDoesNotEnterLongRecovery()
+    {
+        using var pipeline = CreatePipeline();
+        var initial = CreateExpressions(0.4f, 0.4f, 0, 0, 0, 0, 0, 0, 0);
+        Process(pipeline, initial);
+
+        var isolatedDrop = CreateExpressions(
+            0.8f, 0.2f, 0, 0, 0, 0, 0, 0, 0,
+            leftPupilVisibility: 0.001f,
+            rightPupilVisibility: 0.002f);
+        Process(pipeline, isolatedDrop);
+
+        Assert.AreEqual(initial["/leftEyeX"], isolatedDrop["/leftEyeX"], 0.0001f);
+        Assert.AreEqual(initial["/rightEyeX"], isolatedDrop["/rightEyeX"], 0.0001f);
+
+        var nextVisible = CreateExpressions(0.8f, 0.2f, 0, 0, 0, 0, 0, 0, 0);
+        Process(pipeline, nextVisible);
+        Assert.AreEqual(0.04f, nextVisible["/leftEyeX"], 0.0001f);
+        Assert.AreEqual(-0.04f, nextVisible["/rightEyeX"], 0.0001f);
+    }
+
+    [TestMethod]
     public void BothMissingPupilsHoldGazeEvenWhenLidHeadsClaimOpen()
     {
         using var pipeline = CreatePipeline();
@@ -545,10 +567,52 @@ public class EyeProcessingClosedLidTests
             0.95f, 0.05f, 0, 0, 0, 0, 0, 0, 0,
             leftPupilVisibility: 0.001f,
             rightPupilVisibility: 0.002f);
+        // Isolated visibility noise is ignored, but a sustained three-frame loss still protects
+        // gaze even when the model's lid heads fail to report the occlusion.
+        Process(pipeline, missedBlink);
+        missedBlink = CreateExpressions(
+            0.95f, 0.05f, 0, 0, 0, 0, 0, 0, 0,
+            leftPupilVisibility: 0.001f,
+            rightPupilVisibility: 0.002f);
+        Process(pipeline, missedBlink);
+        missedBlink = CreateExpressions(
+            0.95f, 0.05f, 0, 0, 0, 0, 0, 0, 0,
+            leftPupilVisibility: 0.001f,
+            rightPupilVisibility: 0.002f);
         Process(pipeline, missedBlink);
 
         Assert.AreEqual(open["/leftEyeX"], missedBlink["/leftEyeX"], 0.0001f);
         Assert.AreEqual(open["/rightEyeX"], missedBlink["/rightEyeX"], 0.0001f);
+    }
+
+    [TestMethod]
+    public void OpenEyesResumeFromCurrentlyUsablePupilWithoutLongVisibilityRecovery()
+    {
+        using var pipeline = CreatePipeline();
+        var open = CreateExpressions(0.4f, 0.4f, 0, 0, 0, 0, 0, 0, 0);
+        Process(pipeline, open);
+
+        // Three bad frames invalidate the visibility head's long-lived reliability. With both
+        // lids still open this must remain a frame-local hold, not enter the blink recovery state.
+        for (var frame = 0; frame < 3; frame++)
+        {
+            var missing = CreateExpressions(
+                0.95f, 0.05f, 0, 0, 0, 0, 0, 0, 0,
+                leftPupilVisibility: 0.001f,
+                rightPupilVisibility: 0.002f);
+            Process(pipeline, missing);
+        }
+
+        // The live model frequently reports 0.03..0.08 for a visibly open pupil. That current
+        // observation is usable even though it has not crossed the higher recovery hysteresis.
+        var rightReturns = CreateExpressions(
+            0.95f, 0.8f, 0, 0, 0, 0, 0, 0, 0,
+            leftPupilVisibility: 0.001f,
+            rightPupilVisibility: 0.04f);
+        Process(pipeline, rightReturns);
+
+        Assert.AreEqual(0.6f, rightReturns["/rightEyeX"], 0.0001f);
+        Assert.AreNotEqual(open["/leftEyeX"], rightReturns["/leftEyeX"], 0.0001f);
     }
 
     [TestMethod]
@@ -600,7 +664,14 @@ public class EyeProcessingClosedLidTests
             0.95f, 0.7f, 0, 0, 0, 0, 0, 0, 0,
             leftPupilVisibility: 0.02f,
             rightPupilVisibility: 1.0f);
-        Process(pipeline, missing);
+        for (var frame = 0; frame < 3; frame++)
+        {
+            missing = CreateExpressions(
+                0.95f, 0.7f, 0, 0, 0, 0, 0, 0, 0,
+                leftPupilVisibility: 0.02f,
+                rightPupilVisibility: 1.0f);
+            Process(pipeline, missing);
+        }
         var beforeRecovery = missing["/leftEyeX"];
 
         var recovered = CreateExpressions(

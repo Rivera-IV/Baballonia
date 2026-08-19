@@ -1,4 +1,6 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Baballonia.Contracts;
 using Baballonia.Services.events;
 using Baballonia.Services.Inference.Geometry;
@@ -44,7 +46,10 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
     private bool _captureNeutralReference = true;
     private bool _explicitCalibrationReference;
     private EyeFrameNormalizationState _state = UnavailableState;
-    private bool _disposed;
+    private Task? _measurementTask;
+    private int _measurementInFlight;
+    private int _measurementGeneration;
+    private volatile bool _disposed;
 
     public RegistrationMonitorEyeFrameNormalizer(IEyePipelineEventBus eventBus)
     {
@@ -76,15 +81,18 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
             if (measureThisFrame)
                 _measurementFrame = 0;
 
-            // Before correction is active we only need to split reference/measurement frames. Once
-            // a correction exists, both channels must be available on every frame so the last safe
-            // transform can be applied even between the 10 Hz registration measurements.
-            if (!buildingReference && !measureThisFrame &&
+            if (measureThisFrame)
+                QueueMeasurement(transformedStereoFrame);
+
+            // Before correction is active, registration runs entirely from a lightweight cloned
+            // frame on the background worker. The inference thread only needs to split images while
+            // capturing the short neutral reference or applying an already-confirmed correction.
+            if (!buildingReference &&
                 !_leftCorrection.HasCorrection && !_rightCorrection.HasCorrection)
                 return _state;
 
             // Splitting a two-channel Mat allocates two images. Do it only for the short reference
-            // capture or an actual 10 Hz measurement, never on the intervening inference frames.
+            // capture or while a confirmed correction must be applied.
             var channels = transformedStereoFrame.Split();
             try
             {
@@ -95,15 +103,6 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
                 {
                     PrepareReferenceCandidate(channels[0], channels[1]);
                     return _state;
-                }
-
-                if (measureThisFrame)
-                {
-                    _registrationMask ??= CreateStableRegionMask(channels[0].Size());
-                    _leftCorrection.Observe(
-                        Estimate(_leftReference!, channels[0], _registrationMask));
-                    _rightCorrection.Observe(
-                        Estimate(_rightReference!, channels[1], _registrationMask));
                 }
 
                 ApplyCorrection(channels[0], _leftCorrection);
@@ -119,6 +118,83 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
                 foreach (var channel in channels)
                     channel.Dispose();
             }
+        }
+    }
+
+    private void QueueMeasurement(Mat transformedStereoFrame)
+    {
+        if (_leftReference == null || _rightReference == null ||
+            Interlocked.CompareExchange(ref _measurementInFlight, 1, 0) != 0)
+            return;
+
+        RegistrationWorkItem? work = null;
+        try
+        {
+            _registrationMask ??= CreateStableRegionMask(transformedStereoFrame.Size());
+            var queuedWork = new RegistrationWorkItem(
+                transformedStereoFrame.Clone(),
+                _leftReference.Clone(),
+                _rightReference.Clone(),
+                _registrationMask.Clone(),
+                _measurementGeneration);
+            work = queuedWork;
+            _measurementTask = Task.Run(() => ProcessMeasurement(queuedWork));
+        }
+        catch (OpenCVException)
+        {
+            work?.Dispose();
+            Interlocked.Exchange(ref _measurementInFlight, 0);
+        }
+        catch (ObjectDisposedException)
+        {
+            work?.Dispose();
+            Interlocked.Exchange(ref _measurementInFlight, 0);
+        }
+    }
+
+    private void ProcessMeasurement(RegistrationWorkItem work)
+    {
+        try
+        {
+            var channels = work.CurrentStereo.Split();
+            try
+            {
+                if (channels.Length < 2)
+                    return;
+
+                var left = Estimate(work.LeftReference, channels[0], work.Mask);
+                var right = Estimate(work.RightReference, channels[1], work.Mask);
+                lock (_sync)
+                {
+                    if (_disposed || work.Generation != _measurementGeneration)
+                        return;
+
+                    _leftCorrection.Observe(left);
+                    _rightCorrection.Observe(right);
+                    _state = new EyeFrameNormalizationState(
+                        _leftCorrection.State,
+                        _rightCorrection.State);
+                }
+            }
+            finally
+            {
+                foreach (var channel in channels)
+                    channel.Dispose();
+            }
+        }
+        catch (OpenCVException)
+        {
+            // Registration is optional. A malformed/transitional camera frame is discarded and a
+            // later fresh frame gets another chance without faulting the background task.
+        }
+        catch (ObjectDisposedException)
+        {
+            // Camera/model teardown can race an already queued optional measurement.
+        }
+        finally
+        {
+            work.Dispose();
+            Interlocked.Exchange(ref _measurementInFlight, 0);
         }
     }
 
@@ -285,6 +361,7 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
 
     private void BeginReferenceCapture(bool explicitCalibration)
     {
+        InvalidateMeasurements();
         DiscardPendingReferenceCapture();
         _captureNeutralReference = true;
         _explicitCalibrationReference = explicitCalibration;
@@ -337,6 +414,7 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
         _rightAccumulator = null;
         _captureNeutralReference = false;
         _explicitCalibrationReference = false;
+        InvalidateMeasurements();
         _leftCorrection.Reset();
         _rightCorrection.Reset();
     }
@@ -402,6 +480,7 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
     {
         lock (_sync)
         {
+            InvalidateMeasurements();
             _measurementFrame = 0;
             _state = UnavailableState;
             // Model/filter resets keep the learned camera reference. The correction trackers are
@@ -422,6 +501,7 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
 
     private void ClearReference()
     {
+        InvalidateMeasurements();
         _leftAccumulator?.Dispose();
         _rightAccumulator?.Dispose();
         _leftReference?.Dispose();
@@ -441,6 +521,12 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
         _leftCorrection.Reset();
         _rightCorrection.Reset();
         _state = UnavailableState;
+    }
+
+    private void InvalidateMeasurements()
+    {
+        _measurementGeneration++;
+        _measurementFrame = 0;
     }
 
     private static void ApplyCorrection(Mat eye, RegistrationCorrectionTracker tracker)
@@ -480,6 +566,36 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
         _eventBus.Unsubscribe<EyePipelineEvents.CalibrationPhaseChangedEvent>(OnPhaseChanged);
         lock (_sync)
             ClearReference();
+        try
+        {
+            _measurementTask?.Wait(TimeSpan.FromSeconds(1));
+        }
+        catch (AggregateException)
+        {
+            // A failed optional registration measurement must not block application shutdown.
+        }
+    }
+
+    private sealed class RegistrationWorkItem(
+        Mat currentStereo,
+        Mat leftReference,
+        Mat rightReference,
+        Mat mask,
+        int generation) : IDisposable
+    {
+        public Mat CurrentStereo { get; } = currentStereo;
+        public Mat LeftReference { get; } = leftReference;
+        public Mat RightReference { get; } = rightReference;
+        public Mat Mask { get; } = mask;
+        public int Generation { get; } = generation;
+
+        public void Dispose()
+        {
+            CurrentStereo.Dispose();
+            LeftReference.Dispose();
+            RightReference.Dispose();
+            Mask.Dispose();
+        }
     }
 
     private static readonly EyeRegistrationEstimate UnavailableEstimate = new(
