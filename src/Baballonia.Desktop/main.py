@@ -15,7 +15,8 @@ MODEL_NAMES = ["gaze", "blink", "widesqueeze", "brow"]
 def batcher_gaze(train_loader):
     return train_loader.get_next_gaze()
 
-def batcher_lid(train_loader): #todo better weighting just threw this together
+def batcher_lid(train_loader):
+    # Favor ordinary gaze frames while retaining representative lid-expression samples.
     f = random.random()
     if f > 0.2:
         if f > 0.9:

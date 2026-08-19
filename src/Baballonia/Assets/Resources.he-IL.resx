@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>ערך פירוש שביטוי קטן יותר יגיע ל-100% מהר.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>חשוב!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>מכשירי babble חדשים יותר יש השהיה של 20 שניות לאחר חיבור לפני שניתן להשתמש בהם. זה יציר צליל חיבור USB כשהם יהיו מוכנים!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>אל תציג אזהרה זו שוב</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>בטל</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>אם אתה משתמש ב-Baballonia עם VRCFaceTracking, אינך צריך לשנות את היציאות האלה</value>
   </data>
@@ -852,12 +840,6 @@
 • נסה את זמן הרצה Steam scout 1.0 (לא sniper 3.0), התקן libudev, בנה מקוד מקור, או הצטרף לקבוצת plugdev.
 • אנו תומכים רק במהדורות Steam ו-tarball, לא בחבילת AUR.
 • לוחות Babble לא תומכים ב-UVC/סריאלי ב-Linux, השתמש בתצורה אלחוטית.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>שתף נתוני עיניים/פנים</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>הסכם לשתף נתוני עיניים/פנים אנונימיים כדי לשפר את האלגוריתמים שלנו</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>השתמש ב-DFR</value>

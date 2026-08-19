@@ -10,13 +10,13 @@ using System.IO;
 using System.Linq;
 namespace Baballonia.Services;
 
-public class DefaultInferenceRunner(ILoggerFactory loggerFactory) : IInferenceRunner
+public class DefaultInferenceRunner(ILoggerFactory loggerFactory) : IInferenceRunner, IDisposable
 {
     public Size InputSize { get; private set; }
     public DenseTensor<float> InputTensor;
     private ILogger _logger;
     private string _inputName;
-    private InferenceSession _session;
+    private InferenceSession? _session;
     private string[] _outputExpressionNames;
     private bool _hasModelMetadata;
     private OrderedFloatMap _outputs;
@@ -93,12 +93,13 @@ public class DefaultInferenceRunner(ILoggerFactory loggerFactory) : IInferenceRu
 
         _logger = loggerFactory.CreateLogger(this.GetType().Name + "." + Path.GetFileName(modelPath));
 
-        SessionOptions sessionOptions = SetupSessionOptions();
+        using SessionOptions sessionOptions = SetupSessionOptions();
         if (useGpu)
             ConfigurePlatformSpecificGpu(sessionOptions, modelPath);
         else
             sessionOptions.AppendExecutionProvider_CPU();
 
+        _session?.Dispose();
         _session = new InferenceSession(modelPath, sessionOptions);
         _inputName = _session.InputMetadata.Keys.First();
         var dimensions = _session.InputMetadata.Values.First().Dimensions;
@@ -116,15 +117,19 @@ public class DefaultInferenceRunner(ILoggerFactory loggerFactory) : IInferenceRu
     /// </summary>
     private void InitializeModelMetadata()
     {
-        _hasModelMetadata = _session.ModelMetadata.CustomMetadataMap.Count() != 0;
+        var session = _session ?? throw new InvalidOperationException("Inference model is not initialized.");
+        _hasModelMetadata = session.ModelMetadata.CustomMetadataMap.Count != 0;
 
         if (_hasModelMetadata)
         {
-            var metadataJson = _session.ModelMetadata.CustomMetadataMap["blendshape_names"];
-            _outputExpressionNames = JsonConvert.DeserializeObject<string[]>(metadataJson).Select(s => "/" + s).ToArray();
+            if (!session.ModelMetadata.CustomMetadataMap.TryGetValue("blendshape_names", out var metadataJson))
+                throw new InvalidDataException("Model metadata does not contain blendshape_names.");
+            var names = JsonConvert.DeserializeObject<string[]>(metadataJson)
+                ?? throw new InvalidDataException("Model blendshape_names metadata is invalid.");
+            _outputExpressionNames = names.Select(s => "/" + s).ToArray();
         } else {
             // determine expression mapping from model output size
-            var outputSize = _session.OutputMetadata.Values.First().Dimensions[1];
+            var outputSize = session.OutputMetadata.Values.First().Dimensions[1];
             foreach(List<string> mapping in _knownMappings)
             {
                 if(mapping.Count == outputSize)
@@ -271,7 +276,8 @@ public class DefaultInferenceRunner(ILoggerFactory loggerFactory) : IInferenceRu
             NamedOnnxValue.CreateFromTensor(_inputName, InputTensor)
         };
 
-        using var results = _session.Run(inputs);
+        var session = _session ?? throw new InvalidOperationException("Inference model is not initialized.");
+        using var results = session.Run(inputs);
 
         var denseTensor = (DenseTensor<float>)results[0].AsTensor<float>();
         
@@ -283,5 +289,11 @@ public class DefaultInferenceRunner(ILoggerFactory loggerFactory) : IInferenceRu
     public DenseTensor<float> GetInputTensor()
     {
         return InputTensor;
+    }
+
+    public void Dispose()
+    {
+        _session?.Dispose();
+        _session = null;
     }
 }

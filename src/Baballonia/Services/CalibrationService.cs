@@ -94,7 +94,7 @@ public class CalibrationService : ICalibrationService
         if (!expression.EndsWith("Lower") && !expression.EndsWith("Upper")) return;
 
         var isUpper = expression.EndsWith("Upper");
-        var parameterName = expression[..^5]; // Remove "Upper"/"Lower", both 5 letters in size :3
+        var parameterName = NormalizeParameterName(expression[..^5]);
 
         _expressionSettings.TryGetValue(parameterName, out var currentSettings);
 
@@ -110,6 +110,7 @@ public class CalibrationService : ICalibrationService
 
     public CalibrationParameter GetExpressionSettings(string parameterName) // run once per paremeter, per frame
     {
+        parameterName = NormalizeParameterName(parameterName);
         return _expressionSettings.TryGetValue(parameterName, out var settings) ?
             settings :
             _DefaultCalibration;
@@ -117,6 +118,7 @@ public class CalibrationService : ICalibrationService
 
     public CalibrationParameter GetNullableExpressionSettings(string parameterName) // run once per paremeter, per frame
     {
+        parameterName = NormalizeParameterName(parameterName);
         return _expressionSettings.TryGetValue(parameterName, out var settings) ?
             settings :
             null;
@@ -127,7 +129,7 @@ public class CalibrationService : ICalibrationService
         if (!expression.EndsWith("Lower") && !expression.EndsWith("Upper")) return 0;
 
         var isUpper = expression.EndsWith("Upper");
-        var parameterName = expression[..^5]; // Remove "Upper"/"Lower", both 5 letters in size :3
+        var parameterName = NormalizeParameterName(expression[..^5]);
 
         _expressionSettings.TryGetValue(parameterName, out var currentSettings);
 
@@ -217,5 +219,13 @@ public class CalibrationService : ICalibrationService
             parameter.Upper = parameter.Max;
         }
         SaveAsync();
+    }
+
+    private static string NormalizeParameterName(string parameterName)
+    {
+        if (string.IsNullOrEmpty(parameterName) || parameterName[0] == '/')
+            return parameterName;
+
+        return "/" + char.ToLowerInvariant(parameterName[0]) + parameterName[1..];
     }
 }

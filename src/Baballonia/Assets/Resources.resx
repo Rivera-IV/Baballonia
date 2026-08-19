@@ -732,18 +732,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>value means a smaller expression will reach 100% faster.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Important!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Newer babble trackers have a 20 second delay after being plugged in before they can be used. It will make a USB plugging-in sound when it is ready!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Don't show this warning again</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Dismiss</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>If you are using Baballonia with VRCFaceTracking, there is no need to change these ports</value>
   </data>
@@ -860,12 +848,6 @@ This is usually easy to fix! Just install the “Tracking Loss Fix” firmware b
 • Add your user to the video group for uvc, and dialout/uucp group for serial, then reboot.
 • Wired support of Babble Boards is experimental on Linux. Wireless may work better.</value>
   </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Share eye/face data</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Opt into sharing anonymous eye/face data to improve our algorithms</value>
-  </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Use DFR</value>
   </data>
@@ -937,5 +919,11 @@ This is usually easy to fix! Just install the “Tracking Loss Fix” firmware b
   </data>
   <data name="Settings_EyeBrowGain_Description" xml:space="preserve">
     <value>Amplifies the calibrated eyebrow value sent to VRChat. 1.00 is unchanged.</value>
+  </data>
+  <data name="Settings_LiveEyeDiagnostic_Header" xml:space="preserve">
+    <value>Record live eye diagnostics</value>
+  </data>
+  <data name="Settings_LiveEyeDiagnostic_Description" xml:space="preserve">
+    <value>Records eye images and tracking values locally until disabled. Nothing is uploaded. Long recordings can use a lot of disk space.</value>
   </data>
 </root>

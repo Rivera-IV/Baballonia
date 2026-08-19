@@ -16,6 +16,7 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
     private readonly object _lock = new();
 
     private Process? _trainerProcess;
+    private TaskCompletionSource<int>? _exitCompletion;
     public event Action<TrainerProgressReportPacket>? OnProgress;
 
     [GeneratedRegex(@"Batch\s+(\d+)/(\d+),\s+Loss:\s+([0-9.]+)")]
@@ -88,7 +89,14 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
 
         if (progress != null)
         {
-            OnProgress?.Invoke(progress);
+            try
+            {
+                OnProgress?.Invoke(progress);
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Trainer progress subscriber failed");
+            }
         }
 
         var isCompleted = ParseTrainingComplete(dataReceivedEventArgs.Data);
@@ -99,7 +107,14 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
     void ErrorLineEventHandler(object sender, DataReceivedEventArgs dataReceivedEventArgs)
     {
         if (!string.IsNullOrWhiteSpace(dataReceivedEventArgs.Data))
-            logger.LogError("Trainer: {Error}", dataReceivedEventArgs.Data);
+        {
+            var line = dataReceivedEventArgs.Data;
+            if (line.Contains("UserWarning:", StringComparison.Ordinal) ||
+                line.Contains("will fall back to run on the CPU", StringComparison.Ordinal))
+                logger.LogWarning("Trainer: {Warning}", line);
+            else
+                logger.LogError("Trainer: {Error}", line);
+        }
     }
 
     public void RunTraining(string usercalbinPath, string outputfilePath)
@@ -117,17 +132,18 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
         lock (_lock)
         {
             if (_trainerProcess != null && _trainerProcess.HasExited)
+            {
+                _trainerProcess.Dispose();
                 _trainerProcess = null;
+                _exitCompletion = null;
+            }
 
             if (_trainerProcess != null)
                 throw new Exception("Training process already running");
 
-            // Wrap both args in quotes to handle spaces in user names
-            var launchArgs = $"\"{usercalbinPath}\" \"{outputfilePath}\"";
             var startInfo = new ProcessStartInfo
             {
                 FileName = trainerPath,
-                Arguments = launchArgs,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -135,6 +151,12 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
             };
+            startInfo.ArgumentList.Add(usercalbinPath);
+            startInfo.ArgumentList.Add(outputfilePath);
+
+            var exitCompletion = new TaskCompletionSource<int>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            _exitCompletion = exitCompletion;
 
             _trainerProcess = new Process
             {
@@ -145,38 +167,69 @@ public partial class TrainerService(ILogger<TrainerService> logger) : ITrainerSe
             _trainerProcess.ErrorDataReceived += ErrorLineEventHandler;
             _trainerProcess.Exited += (sender, args) =>
             {
-                if (_trainerProcess?.ExitCode is int exitCode && exitCode != 0)
-                    logger.LogError("Trainer exited with code {ExitCode}", exitCode);
-                Interlocked.Exchange(ref _trainerProcess, null);
+                try
+                {
+                    if (sender is not Process exitedProcess)
+                        throw new InvalidOperationException("Trainer exit event did not contain a process.");
+                    var exitCode = exitedProcess.ExitCode;
+                    if (exitCode != 0)
+                        logger.LogError("Trainer exited with code {ExitCode}", exitCode);
+                    exitCompletion.TrySetResult(exitCode);
+                }
+                catch (Exception exception)
+                {
+                    exitCompletion.TrySetException(exception);
+                }
             };
 
-            _trainerProcess.Start();
-            _trainerProcess.BeginOutputReadLine();
-            _trainerProcess.BeginErrorReadLine();
+            try
+            {
+                _trainerProcess.Start();
+                _trainerProcess.BeginOutputReadLine();
+                _trainerProcess.BeginErrorReadLine();
+            }
+            catch
+            {
+                _trainerProcess.Dispose();
+                _trainerProcess = null;
+                _exitCompletion = null;
+                throw;
+            }
         }
     }
 
     public async Task WaitAsync()
     {
-        Process? process;
+        Task<int>? exitTask;
         lock (_lock)
         {
-            process = _trainerProcess;
+            exitTask = _exitCompletion?.Task;
         }
 
-        if (process == null)
-            return;
+        if (exitTask == null)
+            throw new InvalidOperationException("No training process has been started.");
 
-        await process.WaitForExitAsync();
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException($"Trainer exited with code {process.ExitCode}");
+        var exitCode = await exitTask;
+        lock (_lock)
+        {
+            _trainerProcess?.Dispose();
+            _trainerProcess = null;
+            _exitCompletion = null;
+        }
+        if (exitCode != 0)
+            throw new InvalidOperationException($"Trainer exited with code {exitCode}");
     }
 
     public void Dispose()
     {
         lock (_lock)
         {
-            _trainerProcess?.Kill();
+            if (_trainerProcess is { HasExited: false } process)
+                process.Kill(entireProcessTree: true);
+            _trainerProcess?.Dispose();
+            _trainerProcess = null;
+            _exitCompletion?.TrySetCanceled();
+            _exitCompletion = null;
         }
     }
 }

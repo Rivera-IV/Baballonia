@@ -42,12 +42,25 @@ public class OverlayProgram : IOverlayProgram
 
     public void Start()
     {
-        _process?.Kill();
+        StopOwnedProcess();
 
         var processName = Path.GetFileNameWithoutExtension(_executablePath);
         foreach (var p in Process.GetProcesses().Where(p => p.ProcessName == processName))
         {
-            p.Kill(true);
+            try
+            {
+                if (string.Equals(p.MainModule?.FileName, _executablePath,
+                        StringComparison.OrdinalIgnoreCase))
+                    p.Kill(true);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogDebug(exception, "Could not inspect or stop stale calibration overlay {Pid}", p.Id);
+            }
+            finally
+            {
+                p.Dispose();
+            }
         }
 
         var processes = Process.GetProcesses();
@@ -124,8 +137,29 @@ public class OverlayProgram : IOverlayProgram
 
     public void Dispose()
     {
-        _process?.Kill();
+        StopOwnedProcess();
+    }
+
+    private void StopOwnedProcess()
+    {
+        var process = _process;
         _process = null;
+        if (process == null)
+            return;
+
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogDebug(exception, "Could not stop calibration overlay process");
+        }
+        finally
+        {
+            process.Dispose();
+        }
     }
 
     private enum XrMode

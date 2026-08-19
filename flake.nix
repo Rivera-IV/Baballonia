@@ -23,7 +23,7 @@
 
         shellHook = ''
           export DOTNET_ROOT="${dotnet.sdk}"
-          # Fuck knows why the runtime looks in PATH instead of LD_LIBRARY_PATH
+          # The runtime resolves these libraries through PATH rather than LD_LIBRARY_PATH.
           export PATH="$PATH:${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
           export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
         '';

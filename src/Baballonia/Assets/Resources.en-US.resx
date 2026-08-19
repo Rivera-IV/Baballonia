@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>value means a smaller expression will reach 100% faster.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Important!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Newer babble trackers have a 20 second delay after being plugged in before they can be used. It will make a USB plugging-in sound when it is ready!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Don't show this warning again</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Dismiss</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>If you're using Baballonia with VRCFaceTracking, you don't need to change these ports</value>
   </data>
@@ -852,12 +840,6 @@ This is usually easy to fix! Just install the "Tracking Loss Fix" firmware below
 • Try the Steam scout 1.0 runtime (not sniper 3.0), installing libudev, building from source, or joining the plugdev group.
 • We only support Steam and tarball releases, not the AUR package.
 • Babble Boards do not support UVC/Serial on Linux, use a wireless configuration.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Share eye/face data</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Opt-in to sharing anonymous eye/face data to improve our algorithms</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Use DFR</value>

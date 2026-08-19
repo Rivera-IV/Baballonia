@@ -371,7 +371,5 @@
   "AppSettings_UseGPU": true,
   "AppSettings_UseDFR": false,
   "AppSettings_CheckForUpdates": true,
-  "AppSettings_ShareEyeData": false,
-  "EyeDataOptInRead": false,
   "AppSettings_LogLevel": "Information"
 }

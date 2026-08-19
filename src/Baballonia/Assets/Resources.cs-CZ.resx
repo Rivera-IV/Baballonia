@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>hodnota znamená, že menší výraz dosáhne o 100% rychleji.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Důležité!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Novější dětské trackery mají 20 sekund zpoždění po připojení před tím, než mohou být použity. Vytvoří se tak USB plugging-zvuk, až bude připraven!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Příště nezobrazovat toto varování</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Odmítnout</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Pokud používáte Baballonia s VRCFaceTracking, nemusíte měnit tyto porty</value>
   </data>
@@ -852,12 +840,6 @@ To je obvykle snadné opravit! Stačí nainstalovat firmware "Tracking Loss Fix"
 - Zkuste Steam scout 1.0 runtime (ne sniper 3.0), nainstalujte libudev, sestavte ze zdrojového kódu, nebo se připojte ke skupině plugdev.
 - Podporujeme pouze Steam a tarball vydání, ne AUR balíček.
 - Babble desky nepodporují UVC/Sériové na Linuxu, použijte bezdrátovou konfiguraci.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Sdílet data očích/obličeje</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Souhlasit se sdílením anonymních dat očích/obličeje pro zlepšení našich algoritmů</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Použít DFR</value>

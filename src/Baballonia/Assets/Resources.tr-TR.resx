@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>değeri, daha küçük bir ifadenin %100'e daha hızlı ulaşacağı anlamına gelir.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Önemli!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Daha yeni babble tracker'lar takılıp kullanılabilecek olana kadar 20 saniyelik bir gecikmeye sahiptir. Hazır olduğunda USB takma sesi çıkar!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Bu uyarıyı tekrar gösterme</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Kapat</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Baballonia'yı VRCFaceTracking ile birlikte kullanıyorsanız, bu bağlantı noktalarını değiştirmenize gerek yoktur</value>
   </data>
@@ -852,12 +840,6 @@ Bu genellikle kolayca düzeltilebilir! Sadece aşağıdaki "Takip Kaybı Düzelt
 • Steam scout 1.0 çalışma zamanını (sniper 3.0 değil), libudev kurun, kaynaktan derleyin, veya plugdev grubuna katılın.
 • Sadece Steam ve tarball sürümlerini destekliyoruz, AUR paketini değil.
 • Babble kartları Linux'te UVC/Seri port desteklemiyor, kablosuz bir yapılandırma kullanın.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Göz/yüz verilerini paylaş</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Algoritmalarımızı iyileştirmek için anonim göz/yüz verilerini paylaşmayı kabul et</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>DFR kullan</value>

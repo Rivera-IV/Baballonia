@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
-using Avalonia.Threading;
 using Baballonia.Contracts;
 using Baballonia.Services;
 using Baballonia.ViewModels.SplitViewPane;
@@ -173,16 +172,4 @@ public partial class AppSettingsView : ViewBase
         };
     }
 
-    public void RequestMachineId(object? sender, RoutedEventArgs routedEventArgs)
-    {
-        if (DataContext is not AppSettingsViewModel vm) return;
-
-        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
-        if (clipboard is null) return;
-
-        Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            await clipboard.SetTextAsync(vm.MachineID);
-        });
-    }
 }

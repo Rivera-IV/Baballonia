@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+using System;
+using System.IO;
 using Baballonia.Desktop.Calibration;
 using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
@@ -11,14 +12,13 @@ namespace Baballonia.Tests.Trainer;
 public class TrainerServiceTest
 {
     [TestMethod]
-    public async Task Test()
+    public void RunTraining_WithMissingCapture_ThrowsBeforeStartingProcess()
     {
-        var factory = LoggerFactory.Create(builder => builder.AddConsole().AddDebug());
-        var log = factory.CreateLogger<TrainerService>();
-        TrainerService service = new TrainerService(log);
+        using var factory = LoggerFactory.Create(builder => builder.AddConsole().AddDebug());
+        using var service = new TrainerService(factory.CreateLogger<TrainerService>());
+        var missingCapture = Path.Combine(Path.GetTempPath(), $"missing_{Guid.NewGuid():N}.bin");
 
-        service.RunTraining("test.bin", "model.onnx");
-
-        await service.WaitAsync();
+        Assert.ThrowsExactly<FileNotFoundException>(() =>
+            service.RunTraining(missingCapture, Path.Combine(Path.GetTempPath(), "model.onnx")));
     }
 }

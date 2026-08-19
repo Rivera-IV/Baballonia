@@ -9,6 +9,9 @@ using Baballonia.Helpers;
 using Baballonia.Models;
 using Baballonia.Services;
 using Baballonia.Services.Inference;
+using Baballonia.Services.Inference.Backends;
+using Baballonia.Services.Inference.Geometry;
+using Baballonia.Services.Inference.Normalization;
 using Baballonia.Services.Inference.Platforms;
 using Baballonia.ViewModels;
 using Baballonia.ViewModels.SplitViewPane;
@@ -112,6 +115,11 @@ public partial class App : Application
             services.AddSingleton<FaceProcessingPipeline>();
             services.AddSingleton<FacePipelineManager>();
             services.AddSingleton<IFacePipelineEventBus, FacePipelineEventBus>();
+            services.AddSingleton<LegacyTemporalEyeTrackingBackend>();
+            services.AddSingleton<IEyeTrackingBackend>(provider =>
+                provider.GetRequiredService<LegacyTemporalEyeTrackingBackend>());
+            services.AddSingleton<IEyeFrameNormalizer, RegistrationMonitorEyeFrameNormalizer>();
+            services.AddSingleton<IEyeGeometryTracker, AdaptivePupilGeometryTracker>();
             services.AddSingleton<EyeProcessingPipeline>();
             services.AddSingleton<EyePipelineManager>();
             services.AddSingleton<IEyePipelineEventBus, EyePipelineEventBus>();
@@ -120,7 +128,6 @@ public partial class App : Application
             services.AddSingleton<FirmwareSessionFactory>();
 
             // Core Services
-            services.AddTransient<IIdentityService, IdentityService>();
             services.AddTransient<IFileService, FileService>();
             services.AddSingleton<IOscTarget, OscTarget>();
             services.AddSingleton<OscRecvService>();
@@ -129,13 +136,10 @@ public partial class App : Application
             services.AddTransient<OscQueryServiceWrapper>();
             services.AddSingleton<ParameterSenderService>();
             services.AddTransient<GithubService>();
-            services.AddTransient<DataUploaderService>();
             services.AddTransient<ICommandSenderFactory, CommandSenderFactory>();
             services.AddTransient<FirmwareService>();
             services.AddSingleton<IMainService, MainStandalone>();
             services.AddSingleton<ICalibrationService, CalibrationService>();
-            services.AddSingleton<DropOverlayService>();
-
             services.AddSingleton<MainViewModel>();
             services.AddSingleton<MainWindow>();
 
@@ -221,7 +225,11 @@ public partial class App : Application
         // Initialize settings
         var localSettings = Ioc.Default.GetService<ILocalSettingsService>();
 
-        if (localSettings?.ReadSetting<bool>("AppSettings_LiveEyeDiagnostic", false) == true)
+        var diagnosticEnvironmentOverride = string.Equals(
+            Environment.GetEnvironmentVariable("BABALLONIA_LIVE_EYE_DIAGNOSTIC"),
+            "1", StringComparison.Ordinal);
+        if (diagnosticEnvironmentOverride ||
+            localSettings?.ReadSetting<bool>("AppSettings_LiveEyeDiagnostic", false) == true)
         {
             try
             {
@@ -255,6 +263,17 @@ public partial class App : Application
                 InitTray();
                 languageService.OnLanguageUpdated += () => { Dispatcher.UIThread.Post(RefreshTrayStrings); };
                 desktop.MainWindow = new MainWindow(vm);
+                desktop.MainWindow.Closing += (_, _) =>
+                {
+                    // A tray icon can keep the native message loop alive after the last window is
+                    // closed. Explicitly request application shutdown so an active calibration
+                    // overlay/trainer cannot continue invisibly in the background.
+                    if (!_shuttingDown)
+                    {
+                        _shuttingDown = true;
+                        desktop.Shutdown();
+                    }
+                };
                 desktop.MainWindow.Loaded += (_, _) => { desktop.MainWindow.ShowOnboardingIfNeeded(); };
                 desktop.Exit += (s, e) =>
                 {
@@ -309,6 +328,11 @@ public partial class App : Application
         if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime) return;
         _shuttingDown = true;
         if (IsTeardDown) return;
+
+        // Cancel calibration first. This kills the owned Godot/trainer child processes before
+        // camera teardown or the Windows bounded host shutdown can force-terminate the app.
+        try { Ioc.Default.GetService<IVROverlay>()?.Dispose(); }
+        catch { /* shutdown must continue */ }
 
         var mainService = Ioc.Default.GetService<IMainService>();
         var settings = Ioc.Default.GetService<ILocalSettingsService>();

@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>значення означає, що менший вираз досягне 100% швидше.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Важливо!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Нові немовлятні трекери мають затримку через 20 секунд після підключення, перш ніж вони зможуть використати. Коли звук підключення до USB буде готовий!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Не показувати це попередження в майбутньому</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Відхилити</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Якщо ви використовуєте Baballonia з VRCFaceTracking, вам не потрібно змінювати ці порти</value>
   </data>
@@ -852,12 +840,6 @@
 • Спробуйте середовище виконання Steam scout 1.0 (не sniper 3.0), встановіть libudev, збережіть з вихідного коду або приєднайтеся до групи plugdev.
 • Ми підтримуємо лише релізи Steam та tarball, а не пакет AUR.
 • Плати Babble не підтримують UVC/Послідовний порт в Linux, використовуйте бездротову конфігурацію.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Поділитися даними очей/обличчя</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Погодитися на обмін анонімними даними очей/обличчя для покращення наших алгоритмів</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Використовувати DFR</value>

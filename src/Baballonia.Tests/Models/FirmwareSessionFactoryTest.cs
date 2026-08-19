@@ -8,6 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Baballonia.Tests.Models;
 
 [TestClass]
+[TestCategory("Hardware")]
 [TestSubject(typeof(FirmwareSessionFactory))]
 public class FirmwareSessionFactoryTest
 {

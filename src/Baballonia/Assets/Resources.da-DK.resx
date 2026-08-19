@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>værdi betyder et mindre udtryk vil nå 100% hurtigere.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Vigtigt!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Nyere babble trackers har en 20 sekunders forsinkelse efter at være tilsluttet før de kan bruges. Det vil lave en USB-stikkontakt, når det er klar!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Vis ikke denne advarsel igen</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Afvis</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Hvis du bruger Baballonia med VRCFaceTracking, behøver du ikke at ændre disse porte</value>
   </data>
@@ -852,12 +840,6 @@ Dette er normalt let at rette! Bare installer "Tracking Loss Fix" firmwaren nede
 - Prøv Steam scout 1.0 runtime (ikke sniper 3.0), installer libudev, byg fra kildekoden, eller join plugdev-gruppen.
 - Vi understøtter kun Steam- og tarball-udgivelser, ikke AUR-pakken.
 - Babble-kort understøtter ikke UVC/Serielt på Linux, brug en trådløs konfiguration.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Del øje-/ansigtsdata</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Accepter deling af anonyme øje-/ansigtsdata for at forbedre vores algoritmer</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Brug DFR</value>

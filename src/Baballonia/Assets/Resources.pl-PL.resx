@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>spowoduje że Tracker wykryje ruch jako 100% szybciej, zmniejszając potrzebę na większe ruchy twarzy.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Ważne!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Nowsze Trackery mają 20 sekundowe opóźnienie po podłączeniu zanim będą mogły zostać użyte. Gdy Tracker będzie gotowy usłyszysz dźwięk podłączenia USB.</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Nie pokazuj tego ostrzeżenia ponownie</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Odrzuć</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Jeśli używasz Baballonia z VRCFaceTracking, nie ma potrzeby zmiany tych portów</value>
   </data>
@@ -852,12 +840,6 @@ Zazwyczaj można to łatwo naprawić! Po prostu zainstaluj oprogramowanie "Track
 • Spróbuj użyć środowiska Steam scout 1.0 (nie sniper 3.0), zainstaluj libudev, zbuduj z źródła, lub dołącz do grupy plugdev.
 • Wspieramy tylko wydania Steam i tarball, nie pakiet AUR.
 • Płyty Babble nie obsługują UVC/Szeregowego na Linuksie, użyj konfiguracji bezprzewodowej.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Udostępnij dane oczu/twarzy</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Zgadzasz się na udostępnianie anonimowych danych dotyczących oczu/twarzy w celu poprawy naszych algorytmów</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Włącz DFR</value>

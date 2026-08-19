@@ -15,7 +15,7 @@ public class AndroidOverlayTrainerCombo : IVROverlay, IVRCalibrator, IDisposable
 
     public Task<(bool success, string status)> EyeTrackingCalibrationRequested(CalibrationRoutine.Routines calibrationRoutine)
     {
-        return Task.FromResult((true, "Not Supported"));
+        return Task.FromResult((false, "Not Supported"));
     }
 
     public void Dispose()

@@ -401,7 +401,7 @@ FodyWeavers.xsd
 # macOS files
 .DS_Store
 
-# this chonky bastard
+# Large generated desktop runtime archive
 src/Baballonia.Desktop/_internal.zip
 
 /src/Baballonia.Desktop/python
@@ -414,3 +414,9 @@ src/Baballonia.Desktop/Calibration/Windows/Trainer/BabbleTrainer.exe
 src/Baballonia.Desktop/Calibration/Linux/Trainer/BabbleTrainer
 src/Baballonia.Desktop/Calibration/Linux/Trainer/_internal
 src/Baballonia.Desktop/Calibration/Windows/Trainer/_internal
+
+# Local development, training and packaging artifacts
+/.tools/
+/scratch/
+/ibl_db_*.pt
+/src/Baballonia.Desktop/Baballonia Setup*.exe

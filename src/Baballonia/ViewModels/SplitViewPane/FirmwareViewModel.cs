@@ -19,9 +19,8 @@ using System.Threading.Tasks;
 
 namespace Baballonia.ViewModels.SplitViewPane;
 
-// TODO: New firmware now exposes the restart command. Possible automation to restart the board automatically after mode switch.
-// caveat: it changes the com port
-// possible solution: before restarting query and store the serial number and rescan the boards automatically assigning the one with the same serial as selected
+// A firmware restart can re-enumerate the board on a different COM port. Automatic restart support
+// must therefore remember the serial number and resolve the new port before restoring the selection.
 
 public partial class FirmwareViewModel : ViewModelBase, IDisposable
 {
@@ -200,8 +199,8 @@ public partial class FirmwareViewModel : ViewModelBase, IDisposable
             if (!_firmwareSessions.ContainsKey(SelectedSerialPort!))
             {
                 var s = await _firmwareSessionFactory.TryOpenSessionAsync(SelectedSerialPort!);
-                // TODO:
-                // ??????? what to do if we cant open session????
+                // A null session is retained so the selection path can report "No response"
+                // without retrying the same port until the user refreshes or selects it again.
                 _firmwareSessions.Add(SelectedSerialPort!, s);
             }
 
@@ -223,7 +222,8 @@ public partial class FirmwareViewModel : ViewModelBase, IDisposable
                 }
                 else
                 {
-                    IsValidDeviceSelected = false;               // wtf?
+                    // Firmware versions between the legacy and v2 protocols are unsupported.
+                    IsValidDeviceSelected = false;
                 }
             }
             else
@@ -353,7 +353,6 @@ public partial class FirmwareViewModel : ViewModelBase, IDisposable
 
         StartButtonAnimation(Resources.Firmware_ModeSetButton_Setting, nameof(ModeSetButton));
 
-        // TODO: add error handling in case command fails for whatever reason
         await TrySendCommandAsync(new FirmwareRequests.SetModeRequest(m), TimeSpan.FromSeconds(5));
 
         StopButtonAnimation(nameof(ModeSetButton));

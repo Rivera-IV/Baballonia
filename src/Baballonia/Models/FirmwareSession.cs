@@ -110,14 +110,20 @@ public class FirmwareSessionV1(ICommandSender commandSender, ILogger logger) : I
             var jsonDoc = ReadResponse("results", timeout);
             var response = jsonDoc?.Deserialize<FirmwareResponses.GenericResponse>();
             if (response == null)
-                return FirmwareResponse<JsonDocument>.Failure("Wtf?");
+                return FirmwareResponse<JsonDocument>.Failure("The firmware response could not be parsed.");
 
             try
             {
                 // Attempt to extract inner content
                 var result = JsonSerializer.Deserialize<FirmwareResponses.GenericResult>(response.results.First());
+                if (!string.IsNullOrWhiteSpace(result?.result))
+                {
+                    return FirmwareResponse<JsonDocument>.Success(
+                        JsonSerializer.Deserialize<JsonDocument>(result.result)!);
+                }
+
                 return FirmwareResponse<JsonDocument>.Success(
-                    JsonSerializer.Deserialize<JsonDocument>(result!.result)!);
+                    JsonSerializer.Deserialize<JsonDocument>(response.results.First())!);
             }
             catch (JsonException)
             {

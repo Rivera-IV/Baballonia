@@ -8,13 +8,20 @@
 ;--------------------------------
 ;Custom defines
 
-  !define NAME "Baballonia"
+  !define NAME "Baballonia Expressions Preview"
   !define APPFILE "Baballonia.Desktop.exe"
-  !define PUBLISHER "dfgHiatus - Paradigm Reality Enhancement Laboratories"
-  !define VERSION "1.1.0.9"
+  !define PUBLISHER "Baballonia Expressions Preview Contributors"
+  !define FILE_VERSION "1.1.1.1"
+  !define VERSION "1.1.1.1-expressions.preview.1"
   !ifdef WORKFLOW_VERSION ; override version string with one provided through GitHub Actions.
     !undef VERSION
     !define VERSION "${WORKFLOW_VERSION}"
+  !endif
+  !ifndef PUBLISH_DIR
+    !define PUBLISH_DIR "bin\Release\net10.0\win-x64\publish"
+  !endif
+  !ifndef OUTPUT_FILE
+    !define OUTPUT_FILE "Baballonia-Expressions-Preview-1-Setup-x64.exe"
   !endif
   !define SLUG "${NAME} v${VERSION}"
 
@@ -22,12 +29,20 @@
 ;General
 
   Name "${NAME}"
-  OutFile "${NAME} Setup.exe"
+  OutFile "${OUTPUT_FILE}"
   ;Default install directory in user's AppData folder
   InstallDir "$LOCALAPPDATA\${NAME}"
   InstallDirRegKey HKCU "Software\${NAME}" ""
   RequestExecutionLevel user
   Target "amd64-unicode"  ; 64-bit
+  VIProductVersion "${FILE_VERSION}"
+  VIAddVersionKey "ProductName" "${NAME}"
+  VIAddVersionKey "ProductVersion" "${VERSION}"
+  VIAddVersionKey "FileVersion" "${FILE_VERSION}"
+  VIAddVersionKey "FileDescription" "${NAME} Setup"
+  VIAddVersionKey "CompanyName" "${PUBLISHER}"
+  VIAddVersionKey "LegalCopyright" "Project Babble and Baballonia Expressions Preview contributors"
+  VIAddVersionKey "OriginalFilename" "Baballonia-Expressions-Preview-1-Setup-x64.exe"
 
 ;--------------------------------
 ;Compression
@@ -36,7 +51,7 @@
   FileBufSize 64
   ManifestDPIAware true
   ;ManifestLongPathAware true ; disabled until the rest of the app is confirmed to have this setup right
-  XPStyle on ; does this even do anything meaningful anymore?
+  XPStyle on ; Retained for compatibility with the standard NSIS Modern UI configuration.
 
 ;--------------------------------
 ;UI
@@ -74,7 +89,7 @@
     SetOutPath "$INSTDIR"
 
     ;Copy all files except Calibration, Firmware and publish folders
-    File /r /x "Calibration" /x "Firmware" "bin\Release\net10.0\win-x64\publish\*"
+    File /r /x "Calibration" /x "Firmware" /x "*.pdb" "${PUBLISH_DIR}\*"
 
     ;Create Firmware directory
     CreateDirectory "$INSTDIR\Firmware"
@@ -82,17 +97,17 @@
     ;Copy Windows-only Firmware tooling
     CreateDirectory "$INSTDIR\Firmware\Windows"
     SetOutPath "$INSTDIR\Firmware\Windows"
-    File /r "bin\Release\net10.0\win-x64\publish\Firmware\Windows\*"
+    File /r "${PUBLISH_DIR}\Firmware\Windows\*"
 
     ;Copy firmware over
     CreateDirectory "$INSTDIR\Firmware\Binaries"
     SetOutPath "$INSTDIR\Firmware\Binaries"
-    File /r "bin\Release\net10.0\win-x64\publish\Firmware\Binaries\*"
+    File /r "${PUBLISH_DIR}\Firmware\Binaries\*"
 
     ;Create Windows-only Calibration tooling
     CreateDirectory "$INSTDIR\Calibration"
     SetOutPath "$INSTDIR\Calibration"
-    File /r "bin\Release\net10.0\win-x64\publish\Calibration\Windows"
+    File /r /x "*.pdb" "${PUBLISH_DIR}\Calibration\Windows"
 
     ;Reset output path and write registry values
     SetOutPath "$INSTDIR"
@@ -151,7 +166,7 @@
     ClearErrors
 
     Exch $0
-    ;DetailPrint "ASDF - $0\.."
+    ; Remove the parent directory when it is empty.
     RMDir "$0\.."
 
     IfErrors Skip

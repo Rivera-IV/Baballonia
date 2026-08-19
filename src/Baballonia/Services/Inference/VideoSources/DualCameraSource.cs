@@ -16,12 +16,16 @@ public class DualCameraSource : IVideoSource
 
     public bool Start()
     {
-        return (LeftCam?.Stop() ?? true) && (RightCam?.Stop() ?? true);
+        if (ReferenceEquals(LeftCam, RightCam))
+            return LeftCam?.Start() ?? true;
+        return (LeftCam?.Start() ?? true) && (RightCam?.Start() ?? true);
     }
 
     public bool Stop()
     {
-        return (LeftCam?.Start() ?? true) && (RightCam?.Start() ?? true);
+        if (ReferenceEquals(LeftCam, RightCam))
+            return LeftCam?.Stop() ?? true;
+        return (LeftCam?.Stop() ?? true) && (RightCam?.Stop() ?? true);
     }
 
     public WaitHandle[] GetFrameWaitHandles()
@@ -38,6 +42,8 @@ public class DualCameraSource : IVideoSource
     {
         var leftImage = LeftCam?.GetFrame(color);
         var rightImage = RightCam?.GetFrame(color);
+        var ownsLeftImage = leftImage != null;
+        var ownsRightImage = rightImage != null;
 
         if (leftImage == null && rightImage == null)
             return null;
@@ -50,65 +56,67 @@ public class DualCameraSource : IVideoSource
         rightImage ??= LastRightImage;
 
 
-        switch (leftImage)
+        try
         {
-            case null when rightImage == null:
+            switch (leftImage)
+            {
+                case null when rightImage == null:
+                    return null;
+                case null:
+                    leftImage = rightImage.Clone();
+                    ownsLeftImage = true;
+                    break;
+                default:
+                    if (rightImage == null)
+                    {
+                        rightImage = leftImage.Clone();
+                        ownsRightImage = true;
+                    }
+                    break;
+            }
+
+            if (leftImage.Empty() || rightImage.Empty())
                 return null;
-            case null:
-                leftImage = rightImage.Clone();
-                break;
-            default:
-                // Don't clone - preserve both cameras when both are available!
-                if (rightImage == null)
-                    rightImage = leftImage.Clone();
-                break;
+
+            var minHeight = Math.Min(leftImage.Rows, rightImage.Rows);
+            var minWidth = Math.Min(leftImage.Cols, rightImage.Cols);
+            using var resizedLeft = new Mat();
+            using var resizedRight = new Mat();
+            Cv2.Resize(leftImage, resizedLeft, new Size(minWidth, minHeight));
+            Cv2.Resize(rightImage, resizedRight, new Size(minWidth, minHeight));
+
+            var result = new Mat(Math.Max(resizedRight.Rows, resizedLeft.Rows),
+                resizedRight.Cols + resizedLeft.Cols, resizedLeft.Type(), Scalar.All(0));
+            resizedLeft.CopyTo(result[new Rect(0, 0, resizedLeft.Cols, resizedLeft.Rows)]);
+            resizedRight.CopyTo(result[new Rect(resizedLeft.Cols, 0, resizedRight.Cols, resizedRight.Rows)]);
+
+            if (leftIsNew)
+            {
+                LastLeftImage?.Dispose();
+                LastLeftImage = resizedLeft.Clone();
+            }
+            if (rightIsNew)
+            {
+                LastRightImage?.Dispose();
+                LastRightImage = resizedRight.Clone();
+            }
+
+            return result;
         }
-
-        int minHeight = Math.Min(leftImage.Rows, rightImage.Rows);
-        int minWidth = Math.Min(leftImage.Cols, rightImage.Cols);
-
-        if (leftImage.Empty() || rightImage.Empty())
-            return null;
-            
-        Mat resizedLeft = new Mat();
-        Mat resizedRight = new Mat();
-        Cv2.Resize(leftImage, resizedLeft, new Size(minWidth, minHeight));
-        Cv2.Resize(rightImage, resizedRight, new Size(minWidth, minHeight));
-
-        int height = Math.Max(resizedRight.Rows, resizedLeft.Rows);
-        int width = resizedRight.Cols + resizedLeft.Cols;
-
-        Mat result = new Mat(height, width, resizedLeft.Type(), Scalar.All(0));
-
-        resizedLeft.CopyTo(result[new Rect(0, 0, resizedLeft.Cols, resizedRight.Rows)]);
-        resizedRight.CopyTo(result[new Rect(resizedLeft.Cols, 0, resizedRight.Cols, resizedRight.Rows)]);
-
-        // Update last images only for new frames
-        if (leftIsNew)
+        finally
         {
-            LastLeftImage?.Dispose();
-            LastLeftImage = resizedLeft.Clone();
+            if (ownsLeftImage)
+                leftImage?.Dispose();
+            if (ownsRightImage && !ReferenceEquals(leftImage, rightImage))
+                rightImage?.Dispose();
         }
-
-        if (rightIsNew)
-        {
-            LastRightImage?.Dispose();
-            LastRightImage = resizedRight.Clone();
-        }
-
-        // Only dispose new images, not the cached LastImages
-        if (leftIsNew)
-            resizedLeft.Dispose();
-        if (rightIsNew)
-            resizedRight.Dispose();
-
-        return result;
     }
 
     public void Dispose()
     {
         LeftCam?.Dispose();
-        RightCam?.Dispose();
+        if (!ReferenceEquals(LeftCam, RightCam))
+            RightCam?.Dispose();
         LastLeftImage?.Dispose();
         LastRightImage?.Dispose();
     }

@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>giá trị có nghĩa là một biểu cảm nhỏ hơn sẽ đạt 100% nhanh hơn.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Quan trọng!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Các thiết bị theo dõi babble mới hơn có độ trễ 20 giây sau khi được cắm vào trước khi có thể sử dụng. Nó sẽ phát ra âm thanh cắm USB khi sẵn sàng!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Đừng hiển thị cảnh báo này nữa</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Bỏ qua</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Nếu bạn sử dụng Baballonia với VRCFaceTracking, bạn không cần thay đổi các cổng này</value>
   </data>
@@ -852,12 +840,6 @@ Bạn không cần nhập thông tin xác thực Wi-Fi. Chỉ cần chuyển tra
 - Thử runtime Steam scout 1.0 (không phải sniper 3.0), cài đặt libudev, xây dựng từ nguồn, hoặc tham gia nhóm plugdev.
 - Chúng tôi chỉ hỗ trợ các bản phát hành Steam và tarball, không phải gói AUR.
 - Bo mạch Babble không hỗ trợ UVC/Sê-ri trên Linux, sử dụng cấu hình không dây.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Chia sẻ dữ liệu mắt/khuôn mặt</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Đồng ý chia sẻ dữ liệu mắt/khuôn mặt ẩn danh để cải thiện thuật toán của chúng tôi</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Sử dụng DFR</value>

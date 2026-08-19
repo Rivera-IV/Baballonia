@@ -8,8 +8,12 @@
         <ApplicationIcon>Assets\IconOpaque.ico</ApplicationIcon>
         <Company>Paradigm Reality Enhancement Labs</Company>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <AssemblyVersion></AssemblyVersion>
-        <FileVersion></FileVersion>
+        <AssemblyVersion>1.1.1.1</AssemblyVersion>
+        <FileVersion>1.1.1.1</FileVersion>
+        <Version>1.1.1.1-expressions.preview.1</Version>
+        <Product>Baballonia Expressions Preview</Product>
+        <AssemblyTitle>Baballonia Expressions Preview</AssemblyTitle>
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
 
     <PropertyGroup>
@@ -35,7 +39,7 @@
         <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260302" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
 	    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.3" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
         <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.2" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
-		<PackageReference Include="DirectShowLib" Version="1.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+		<PackageReference Include="DirectShowLib.Standard" Version="2.1.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
 
         <!-- macOS-specific -->
         <PackageReference Include="OpenCvSharp4.runtime.osx.10.15-universal" Version="4.7.0.20230224" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
@@ -69,12 +73,6 @@
         <ProjectReference Include="..\Baballonia.IPCameraCapture\Baballonia.IPCameraCapture.csproj" />
         <ProjectReference Include="..\Baballonia.VFTCapture\Baballonia.VFTCapture.csproj" />
         <ProjectReference Include="..\Baballonia\Baballonia.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Reference Include="OpenCvSharp">
-        <HintPath>..\..\..\opencvsharp\src\OpenCvSharp\bin\Debug\net6.0\OpenCvSharp.dll</HintPath>
-      </Reference>
     </ItemGroup>
 
     <ItemGroup>
@@ -168,16 +166,22 @@
         </ItemGroup>
         <Move SourceFiles="@(ModuleDlls)" DestinationFolder="$(OutputPath)Modules\" />
     </Target>
-    <!-- TODO: this sucks -->
+    <!-- Keep capture plugins in a separate folder. Use PublishDir instead of the default
+         OutputPath\publish location so this also works with `dotnet publish -o ...`. -->
     <Target Name="CopyModulesToFolderPublish" AfterTargets="Publish">
         <ItemGroup>
-            <PublishModuleDlls Condition="Exists('$(OutputPath)\publish\Baballonia.SerialCameraCapture.dll')" Include="$(OutputPath)\publish\Baballonia.SerialCameraCapture.dll" />
-            <PublishModuleDlls Condition="Exists('$(OutputPath)\publish\Baballonia.OpenCVCapture.dll')" Include="$(OutputPath)\publish\Baballonia.OpenCVCapture.dll" />
-            <PublishModuleDlls Condition="Exists('$(OutputPath)\publish\Baballonia.IPCameraCapture.dll')" Include="$(OutputPath)\publish\Baballonia.IPCameraCapture.dll" />
-            <PublishModuleDlls Condition="Exists('$(OutputPath)\publish\Baballonia.VFTCapture.dll')" Include="$(OutputPath)\publish\Baballonia.VFTCapture.dll" />
-            <PublishModuleDlls Condition="Exists('$(OutputPath)\publish\Baballonia.LibV4L2Capture.dll')" Include="$(OutputPath)\publish\Baballonia.LibV4L2Capture.dll" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.SerialCameraCapture.dll')" Include="$(PublishDir)Baballonia.SerialCameraCapture.dll" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.SerialCameraCapture.pdb')" Include="$(PublishDir)Baballonia.SerialCameraCapture.pdb" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.OpenCVCapture.dll')" Include="$(PublishDir)Baballonia.OpenCVCapture.dll" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.OpenCVCapture.pdb')" Include="$(PublishDir)Baballonia.OpenCVCapture.pdb" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.IPCameraCapture.dll')" Include="$(PublishDir)Baballonia.IPCameraCapture.dll" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.IPCameraCapture.pdb')" Include="$(PublishDir)Baballonia.IPCameraCapture.pdb" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.VFTCapture.dll')" Include="$(PublishDir)Baballonia.VFTCapture.dll" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.VFTCapture.pdb')" Include="$(PublishDir)Baballonia.VFTCapture.pdb" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.LibV4L2Capture.dll')" Include="$(PublishDir)Baballonia.LibV4L2Capture.dll" />
+            <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.LibV4L2Capture.pdb')" Include="$(PublishDir)Baballonia.LibV4L2Capture.pdb" />
         </ItemGroup>
-        <Move SourceFiles="@(PublishModuleDlls)" DestinationFolder="$(OutputPath)\publish\Modules\" />
+        <Move SourceFiles="@(PublishModuleFiles)" DestinationFolder="$(PublishDir)Modules\" />
     </Target>
 
     <!-- SkiaSharp is currently broken on ARM for some reason -->

@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>valore significa che un'espressione più piccola raggiungerà il 100% più velocemente.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Importante!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>I tracker più recenti hanno un ritardo di 20 secondi dopo essere stati collegati prima che possano essere usati. Farà un suono di collegamento USB quando sarà pronto!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Non mostrare più questo avviso</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Ignora</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Se stai usando Baballonia con VRCFaceTracking, non c'è bisogno di cambiare queste porte</value>
   </data>
@@ -852,12 +840,6 @@ Questo di solito è facile da risolvere! Installa semplicemente il firmware "Tra
 • Prova il runtime Steam scout 1.0 (non sniper 3.0), installa libudev, compila dai sorgenti, o unisciti al gruppo plugdev.
 • Supportiamo solo le release Steam e tarball, non il pacchetto AUR.
 • Le schede Babble non supportano UVC/Seriale su Linux, usa una configurazione wireless.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Condividi dati occhi/viso</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Acconsenti alla condivisione di dati anonimi di occhi/viso per migliorare i nostri algoritmi</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Usa DFR</value>

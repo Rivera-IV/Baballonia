@@ -12,6 +12,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Baballonia.Tests.Models;
 
 [TestClass]
+[TestCategory("Hardware")]
 [TestSubject(typeof(FirmwareSessionV2))]
 public class FirmwareSessionV2Test
 {

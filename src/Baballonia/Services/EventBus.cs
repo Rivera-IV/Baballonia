@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
 
 namespace Baballonia.Services;
 
@@ -33,20 +33,25 @@ public class EyePipelineEventBus : GenericEventBus, IEyePipelineEventBus
 
 public class GenericEventBus : IEventBus
 {
-    private readonly Dictionary<Type, List<Delegate>> _subscribers = new();
-    private object _lock = new();
+    // Arrays are immutable snapshots: subscription changes allocate rarely, while the hot publish
+    // path reads and iterates without creating a callback array every camera frame.
+    private readonly Dictionary<Type, Delegate[]> _subscribers = new();
+    private readonly object _lock = new();
 
     public void Subscribe<T>(Action<T> callback)
     {
         lock (_lock)
         {
-            if (!_subscribers.TryGetValue(typeof(T), out var list))
+            if (!_subscribers.TryGetValue(typeof(T), out var callbacks))
             {
-                list = new List<Delegate>();
-                _subscribers[typeof(T)] = list;
+                _subscribers[typeof(T)] = [callback];
+                return;
             }
 
-            list.Add(callback);
+            var updated = new Delegate[callbacks.Length + 1];
+            Array.Copy(callbacks, updated, callbacks.Length);
+            updated[^1] = callback;
+            _subscribers[typeof(T)] = updated;
         }
     }
 
@@ -54,23 +59,47 @@ public class GenericEventBus : IEventBus
     {
         lock (_lock)
         {
-            if (_subscribers.TryGetValue(typeof(T), out var list))
+            if (_subscribers.TryGetValue(typeof(T), out var callbacks))
             {
-                list.Remove(callback);
-                if (list.Count == 0)
+                var index = Array.IndexOf(callbacks, callback);
+                if (index < 0)
+                    return;
+                if (callbacks.Length == 1)
+                {
                     _subscribers.Remove(typeof(T));
+                    return;
+                }
+
+                var updated = new Delegate[callbacks.Length - 1];
+                if (index > 0)
+                    Array.Copy(callbacks, 0, updated, 0, index);
+                if (index < callbacks.Length - 1)
+                    Array.Copy(callbacks, index + 1, updated, index,
+                        callbacks.Length - index - 1);
+                _subscribers[typeof(T)] = updated;
             }
         }
     }
 
     public void Publish<T>(T data)
     {
+        Delegate[] callbacks;
         lock (_lock)
         {
-            if (_subscribers.TryGetValue(typeof(T), out var list))
+            if (!_subscribers.TryGetValue(typeof(T), out var list))
+                return;
+            callbacks = list;
+        }
+
+        foreach (var subscriber in callbacks)
+        {
+            try
             {
-                foreach (var callback in list.Cast<Action<T>>())
-                    callback(data);
+                ((Action<T>)subscriber)(data);
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("Event subscriber for {0} failed: {1}", typeof(T).Name, exception);
             }
         }
     }
@@ -78,6 +107,6 @@ public class GenericEventBus : IEventBus
     public bool HasSubscribers<T>()
     {
         lock (_lock)
-            return _subscribers.TryGetValue(typeof(T), out var list) && list.Count > 0;
+            return _subscribers.TryGetValue(typeof(T), out var list) && list.Length > 0;
     }
 }

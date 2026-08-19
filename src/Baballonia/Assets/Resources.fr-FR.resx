@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>signifie qu'une expression plus faible atteindra 100% plus rapidement.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Important!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Les nouveaux modèles d'appareils de suivi ont un délai de 20 secondes après être branchés avant de pouvoir être utilisés. Un son d'insertion USB se jouera quand ils seront prêts !</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Ne plus afficher cet avertissement</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Ignorer</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Si vous utilisez Baballonia avec VRCFaceTracking, il n'est pas nécessaire de modifier ces ports</value>
   </data>
@@ -852,12 +840,6 @@ C'est généralement facile à résoudre ! Installez simplement le micrologiciel
 • Essayez le runtime Steam scout 1.0 (pas sniper 3.0), installez libudev, compilez depuis la source, ou rejoignez le groupe plugdev.
 • Nous supportons seulement Steam ou Tarball, pas les version AUR.
 • Les appareils Babble ne supportent pas UVC/Serial sur Linux, utilisez une configuration sans fil.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Partager les données des yeux/visage</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Accepter de partager des données anonymes des yeux/visage pour améliorer nos algorithmes</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Utiliser DFR</value>

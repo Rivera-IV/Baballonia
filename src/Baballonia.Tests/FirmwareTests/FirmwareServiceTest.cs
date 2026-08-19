@@ -71,7 +71,7 @@ public class FirmwareServiceTest
     public void TestSendCommand()
     {
         var mockLines = new List<string>();
-        mockLines.Add("""{"heartbeat":{}}""");
+        mockLines.Add("""{"heartbeat":"alive","serial":"test"}""");
         mockLines.Add("""{"results":        ["{\"result\":\"{\\\"status\\\":\\\"connected\\\",\\\"networks_configured\\\":1,\\\"ip_address\\\":\\\"192.168.0.246\\\"}\"}"]} """);
 
         var firmwareService = CreateService(mockLines);
@@ -109,7 +109,7 @@ public class FirmwareServiceTest
     public void TestSendGeneric()
     {
         var mockLines = new List<string>();
-        mockLines.Add("""{"heartbeat":{}}""");
+        mockLines.Add("""{"heartbeat":"alive","serial":"test"}""");
         mockLines.Add("""
                           {"results":[
                           "{\"command_name\":\"pause\", \"status\":\"SUCCESS\"}"
@@ -121,9 +121,10 @@ public class FirmwareServiceTest
         session.WaitForHeartbeat(TimeSpan.FromSeconds(10));
 
         var commandResult = session.SendCommand(new FirmwareRequests.SetPausedRequest(true), TimeSpan.FromSeconds(10));
-        Assert.AreEqual("""
-                        {"command_name":"pause", "status":"SUCCESS"}
-                        """, commandResult.Value!.ToString());
+        Assert.AreEqual("pause",
+            commandResult.Value!.RootElement.GetProperty("command_name").GetString());
+        Assert.AreEqual("SUCCESS",
+            commandResult.Value.RootElement.GetProperty("status").GetString());
     }
 
 

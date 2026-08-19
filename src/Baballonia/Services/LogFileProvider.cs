@@ -17,7 +17,7 @@ public class LogFileProvider : ILoggerProvider
     {
         try
         {
-            if (!Directory.Exists(Utils.UserAccessibleDataDirectory)) // Eat my ass windows
+            if (!Directory.Exists(Utils.UserAccessibleDataDirectory))
                 Directory.CreateDirectory(Utils.UserAccessibleDataDirectory);
 
             CleanupOldLogFiles();

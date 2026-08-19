@@ -28,7 +28,7 @@ namespace Baballonia.ViewModels.SplitViewPane;
 
 public partial class HomePageViewModel : ViewModelBase, IDisposable
 {
-    // This feels unorthodox but... i kinda like it?
+    // Holds the selection, crop, preview, and capture-backend state for one camera input.
     public partial class CameraControllerModel : ObservableObject
     {
         public string Name;
@@ -119,13 +119,8 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
 
         partial void OnDisplayAddressChanged(string value)
         {
-            // "it looks like shit" be damned, i've seen *way* too many instances of people needing to force
-            // a capture backend and this stupid visual preference garbage is getting in the way of it.
-            // we're going to get more support tickets from people who can't find this when they're on linux or
-            // using vive face trackers.
-            // if you think it looks bad, suck it, make it look better yourself, it has to be here,
-            // the NEED take precedent over visual preferences.
-            //var advancedEnabled = _localSettingsService.ReadSetting<bool>("AppSettings_AdvancedOptions");
+            // Keep backend selection available whenever multiple providers support the address.
+            // This is required for Linux cameras and specialized devices such as Vive Facial Trackers.
             var advancedEnabled = true;
             var availableCaptureFactories = _platformConnector.GetCaptureFactories()
                 .Where(factory => factory.CanConnect(value)).ToArray();
@@ -134,9 +129,8 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
             CaptureMethodVisible = shouldShow;
 
             CaptureMethods.Clear();
-            // IF YOU'RE TRYING TO ENABLE A SPECIFIC BACKEND FOR A CAPTURE, DO NOT TOUCH THIS!
-            // THIS IS NOT WHERE YOU FORCE A BACKEND
-            // OVERRIDE THE CANCAPTURE() METHOD INSIDE THE CAPTURE'S CAPTURE FACTORY
+            // Backend eligibility belongs in the capture factory's CanConnect implementation;
+            // this view only presents the matching providers.
             if (shouldShow)
             {
                 CaptureMethods.Add(Assets.Resources.Home_Backend_Default);
@@ -338,7 +332,7 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
         {
             // Double-buffered: write into the off-screen back buffer, then present it by assigning
             // a genuinely different reference into Bitmap. This raises one PropertyChanged and one
-            // clean re-render, replacing the old "Bitmap = null; Bitmap = tmp" hack that forced a
+            // clean re-render, replacing the old "Bitmap = null; Bitmap = tmp" workaround that forced a
             // 0-size relayout plus a second layout pass every frame. It also means the compositor
             // never reads a buffer we're mid-write into.
             if (_backBuffer is null ||
@@ -464,8 +458,6 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private CameraControllerModel _faceCamera;
 
 
-    private readonly DropOverlayService _dropOverlayService;
-
     private readonly FacePipelineManager _facePipelineManager;
     private readonly IFacePipelineEventBus _facePipelineEventBus;
     private readonly EyePipelineManager _eyePipelineManager;
@@ -486,7 +478,6 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
         IDeviceEnumerator deviceEnumerator,
         ILocalSettingsService localSettings,
         ILogger<HomePageViewModel> logger,
-        DropOverlayService dropOverlayService,
         IPlatformConnector platformConnector)
     {
         _facePipelineManager = facePipelineManager;
@@ -497,7 +488,6 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
         _deviceEnumerator = deviceEnumerator;
         _localSettings = localSettings;
         _logger = logger;
-        _dropOverlayService = dropOverlayService;
         _platformConnector = platformConnector;
         _vrOverlay.TrainingProgressChanged += OnTrainingProgressChanged;
 
@@ -511,12 +501,6 @@ public partial class HomePageViewModel : ViewModelBase, IDisposable
 
     private void Initialize()
     {
-        var hasRead = _localSettings.ReadSetting<bool>("EyeDataOptInRead");
-        if (!hasRead)
-        {
-            _dropOverlayService.Show();
-        }
-
         var cameras = _deviceEnumerator.UpdateCameras();
         var cameraNames = cameras.Keys.ToArray();
 

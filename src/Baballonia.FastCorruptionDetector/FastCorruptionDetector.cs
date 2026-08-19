@@ -28,66 +28,56 @@ public class DetectionStats
 public class FastCorruptionDetector(
     double threshold = 0.022669,
     bool useAdaptive = true,
-    int adaptationWindow = 100)
+    int adaptationWindow = 100) : IDisposable
 {
     private readonly double _baseThreshold = threshold;
     private double _currentThreshold = threshold;
 
-    private readonly Queue<double> _recentValues = new();
+    private readonly double[] _recentValues = new double[Math.Max(1, adaptationWindow)];
+    private readonly double[] _sortBuffer = new double[Math.Max(1, adaptationWindow)];
+    private int _recentCount;
+    private int _recentIndex;
+    private readonly Mat _grayScratch = new();
+    private readonly Mat _rowMeans = new();
 
     private int _totalFrames;
     private int _detectedCorruptedLeft;
     private int _detectedCorruptedRight;
     private int _thresholdUpdates;
 
-    private static double CalculateRowPatternConsistency(Mat image)
+    private double CalculateRowPatternConsistency(Mat image)
     {
-        Mat gray;
-
+        var gray = image;
         if (image.Channels() == 3)
         {
-            gray = new Mat();
-            Cv2.CvtColor(image, gray, ColorConversionCodes.BGR2GRAY);
-        }
-        else
-        {
-            gray = image.Clone();
+            Cv2.CvtColor(image, _grayScratch, ColorConversionCodes.BGR2GRAY);
+            gray = _grayScratch;
         }
 
-        Mat grayNorm = new Mat();
-        gray.ConvertTo(grayNorm, MatType.CV_32F, 1.0 / 255.0);
-
-        var rowMeans = new double[grayNorm.Rows];
-        for (int i = 0; i < grayNorm.Rows; i++)
-        {
-            using (var row = grayNorm.Row(i))
-            {
-                Scalar meanScalar = Cv2.Mean(row);
-                rowMeans[i] = meanScalar.Val0;
-            }
-        }
-
-        if (rowMeans.Length <= 1)
-        {
-            gray.Dispose();
-            grayNorm.Dispose();
+        if (gray.Rows <= 1)
             return 0.0;
-        }
 
-        var diffs = new double[rowMeans.Length - 1];
-        for (int i = 0; i < diffs.Length; i++)
+        // Reduce all columns at once instead of allocating a float image, one Mat header per row,
+        // and several managed arrays. Dividing the byte means by 255 is equivalent to the former
+        // full-image ConvertTo(..., 1/255) operation.
+        Cv2.Reduce(gray, _rowMeans, ReduceDimension.Column, ReduceTypes.Avg, MatType.CV_64F);
+        var means = _rowMeans.AsSpan<double>();
+        var previous = means[0] / 255.0;
+        double sum = 0.0;
+        double sumSquares = 0.0;
+        for (var row = 1; row < means.Length; row++)
         {
-            diffs[i] = rowMeans[i + 1] - rowMeans[i];
+            var current = means[row] / 255.0;
+            var difference = current - previous;
+            sum += difference;
+            sumSquares += difference * difference;
+            previous = current;
         }
 
-        double mean = diffs.Average();
-        double variance = diffs.Select(d => Math.Pow(d - mean, 2)).Average();
-        double standardDeviation = Math.Sqrt(variance);
-
-        gray.Dispose();
-        grayNorm.Dispose();
-
-        return standardDeviation;
+        var count = means.Length - 1;
+        var mean = sum / count;
+        var variance = Math.Max(0.0, sumSquares / count - mean * mean);
+        return Math.Sqrt(variance);
     }
 
     private void UpdateAdaptiveThreshold(double value)
@@ -95,24 +85,21 @@ public class FastCorruptionDetector(
         if (!useAdaptive)
             return;
 
-        _recentValues.Enqueue(value);
+        _recentValues[_recentIndex] = value;
+        _recentIndex = (_recentIndex + 1) % _recentValues.Length;
+        _recentCount = Math.Min(_recentCount + 1, _recentValues.Length);
 
-        if (_recentValues.Count > adaptationWindow)
-        {
-            _recentValues.Dequeue();
-        }
-
-        if (_recentValues.Count < 20)
+        if (_recentCount < 20)
             return;
 
-        var values = _recentValues.ToArray();
-        Array.Sort(values);
+        Array.Copy(_recentValues, _sortBuffer, _recentCount);
+        Array.Sort(_sortBuffer, 0, _recentCount);
+        double median = _sortBuffer[_recentCount / 2];
 
-        double median = values[values.Length / 2];
-
-        var absDeviations = values.Select(v => Math.Abs(v - median)).ToArray();
-        Array.Sort(absDeviations);
-        double mad = absDeviations[absDeviations.Length / 2];
+        for (var i = 0; i < _recentCount; i++)
+            _sortBuffer[i] = Math.Abs(_recentValues[i] - median);
+        Array.Sort(_sortBuffer, 0, _recentCount);
+        double mad = _sortBuffer[_recentCount / 2];
 
         double adaptiveThreshold = median + 3.0 * mad;
 
@@ -171,5 +158,11 @@ public class FastCorruptionDetector(
             ThresholdUpdates = _thresholdUpdates,
             AdaptiveEnabled = useAdaptive
         };
+    }
+
+    public void Dispose()
+    {
+        _grayScratch.Dispose();
+        _rowMeans.Dispose();
     }
 }

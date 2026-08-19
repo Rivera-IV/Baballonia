@@ -8,6 +8,27 @@ using System.Threading;
 
 namespace Baballonia.Desktop.Calibration;
 
+internal static class CaptureFileWriter
+{
+    public static void WriteAtomically(string destinationPath, IEnumerable<Frame> frames)
+    {
+        var directory = Path.GetDirectoryName(destinationPath)
+            ?? throw new InvalidOperationException("Capture destination has no directory.");
+        Directory.CreateDirectory(directory);
+        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(destinationPath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            CaptureBin.IO.CaptureBin.WriteAll(temporaryPath, frames);
+            File.Move(temporaryPath, destinationPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+        }
+    }
+}
+
 public class PositionalBinCollector(uint headerFlags)
 {
     private readonly object _lock = new();
@@ -77,10 +98,22 @@ public class PositionalBinCollector(uint headerFlags)
         lock (_lock)
         {
             copy = new List<Frame>(_frames);
-            _frames.Clear();
         }
 
-        CaptureBin.IO.CaptureBin.WriteAll(Path.Combine(Utils.ModelDataDirectory, path), copy);
+        CaptureFileWriter.WriteAtomically(Path.Combine(Utils.ModelDataDirectory, path), copy);
+        lock (_lock)
+        {
+            _frames.Clear();
+        }
+    }
+
+    public void RemoveFrames(IEnumerable<Frame> frames)
+    {
+        var rejected = new HashSet<Frame>(frames);
+        if (rejected.Count == 0)
+            return;
+        lock (_lock)
+            _frames.RemoveAll(rejected.Contains);
     }
 
 }
@@ -147,9 +180,22 @@ public class BinCollector(uint headerFlags)
         lock (_lock)
         {
             copy = new List<Frame>(_frames);
-            _frames.Clear();
         }
 
-        CaptureBin.IO.CaptureBin.WriteAll(Path.Combine(Utils.ModelDataDirectory, path), copy);
+        CaptureFileWriter.WriteAtomically(Path.Combine(Utils.ModelDataDirectory, path), copy);
+        lock (_lock)
+        {
+            _frames.Clear();
+        }
     }
+
+    public void RemoveFrames(IEnumerable<Frame> frames)
+    {
+        var rejected = new HashSet<Frame>(frames);
+        if (rejected.Count == 0)
+            return;
+        lock (_lock)
+            _frames.RemoveAll(rejected.Contains);
+    }
+
 }

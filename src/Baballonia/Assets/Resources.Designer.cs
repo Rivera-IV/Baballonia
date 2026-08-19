@@ -529,42 +529,6 @@ namespace Baballonia.Assets {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Dismiss.
-        /// </summary>
-        public static string DropOverlay_Dismiss_Button {
-            get {
-                return ResourceManager.GetString("DropOverlay_Dismiss_Button", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Don&apos;t show this warning again.
-        /// </summary>
-        public static string DropOverlay_DontShowAgain {
-            get {
-                return ResourceManager.GetString("DropOverlay_DontShowAgain", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Important!.
-        /// </summary>
-        public static string DropOverlay_Important_Header {
-            get {
-                return ResourceManager.GetString("DropOverlay_Important_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Newer babble trackers have a 20 second delay after being plugged in before they can be used. It will make a USB plugging-in sound when it is ready!.
-        /// </summary>
-        public static string DropOverlay_Message {
-            get {
-                return ResourceManager.GetString("DropOverlay_Message", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Load Custom Firmware.
         /// </summary>
         public static string Firmware_Custom_Firmware_Load {
@@ -1643,6 +1607,24 @@ namespace Baballonia.Assets {
                 return ResourceManager.GetString("Settings_Advanced_Header", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Records eye images and tracking values locally until disabled.
+        /// </summary>
+        public static string Settings_LiveEyeDiagnostic_Description {
+            get {
+                return ResourceManager.GetString("Settings_LiveEyeDiagnostic_Description", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Record live eye diagnostics.
+        /// </summary>
+        public static string Settings_LiveEyeDiagnostic_Header {
+            get {
+                return ResourceManager.GetString("Settings_LiveEyeDiagnostic_Header", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Enable Pimax4All dynamic foveated rendering for select titles.
@@ -2244,24 +2226,6 @@ namespace Baballonia.Assets {
         public static string Settings_OSC_VRCFT_Warning {
             get {
                 return ResourceManager.GetString("Settings_OSC_VRCFT_Warning", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Opt into sharing anonymous eye/face data to improve our algorithms.
-        /// </summary>
-        public static string Settings_ShareData_Description {
-            get {
-                return ResourceManager.GetString("Settings_ShareData_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Share eye/face data.
-        /// </summary>
-        public static string Settings_ShareData_Header {
-            get {
-                return ResourceManager.GetString("Settings_ShareData_Header", resourceCulture);
             }
         }
         

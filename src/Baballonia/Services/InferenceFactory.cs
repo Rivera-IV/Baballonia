@@ -20,7 +20,9 @@ public class InferenceFactory
 
     public DefaultInferenceRunner Create(string modelPath)
     {
-        var useGpu = _localSettings.ReadSetting<bool>("AppSettings_UseGPU", false);
+        // Match the UI setting's declared default. On a fresh profile the former false fallback
+        // silently loaded the first models on CPU before the settings view had ever been opened.
+        var useGpu = _localSettings.ReadSetting<bool>("AppSettings_UseGPU", true);
         _loggerFactory.CreateLogger<DefaultInferenceRunner>();
 
         var inference = new DefaultInferenceRunner(_loggerFactory);

@@ -28,7 +28,20 @@ sealed class Program
     public static int Main(string[] args)
     {
         // Give the mutex some time to think, check if another process with an identical mutex ID exists
-        if (!Mutex.WaitOne(TimeSpan.FromSeconds(2), false))
+        bool ownsMutex;
+        try
+        {
+            ownsMutex = Mutex.WaitOne(TimeSpan.FromSeconds(2), false);
+        }
+        catch (AbandonedMutexException)
+        {
+            // The previous process terminated while owning the mutex (for example after a camera
+            // shutdown hang). WaitOne grants ownership before throwing, so startup can safely
+            // recover instead of crashing on every first restart after that failure.
+            ownsMutex = true;
+        }
+
+        if (!ownsMutex)
         {
             return 75; // Exit code for BSD's EX_TEMPFAIL, invite the user to try again later
         }

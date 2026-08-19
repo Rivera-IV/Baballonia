@@ -22,7 +22,7 @@ public class LogFileLogger(string categoryName, StreamWriter file) : ILogger
     {
         try
         {
-            // Hack to get settings key without the settings service
+            // Logging starts before the settings service, so read the minimum level directly.
             var settingsPath = Path.Combine(Utils.PersistentDataDirectory, "ApplicationData", "LocalSettings.json");
             if (File.Exists(settingsPath))
             {

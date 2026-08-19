@@ -32,6 +32,9 @@ public class ParameterSenderService : BackgroundService
     private readonly ConcurrentQueue<OscMessage> _dfrQueue = new();
     // Reused drain buffer for the (single-threaded) sender loop.
     private readonly List<OscMessage> _sendBuffer = new();
+    private readonly Dictionary<string, int> _sendBufferIndexes = new(StringComparer.Ordinal);
+    private const int MaxQueuedMessages = 2048;
+    private long _lastSenderErrorLog;
 
     public ParameterSenderService(
         VrcftModuleSendService vrcftModuleSendService,
@@ -80,9 +83,18 @@ public class ParameterSenderService : BackgroundService
                 await SendAndClearQueue(cancellationToken);
                 await Task.Delay(10, cancellationToken);
             }
-            catch (Exception)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // ignore
+                break;
+            }
+            catch (Exception exception)
+            {
+                var now = Environment.TickCount64;
+                if (now - Interlocked.Read(ref _lastSenderErrorLog) >= 10_000)
+                {
+                    Interlocked.Exchange(ref _lastSenderErrorLog, now);
+                    _logger.LogError(exception, "OSC sender loop failed");
+                }
             }
         }
     }
@@ -106,16 +118,17 @@ public class ParameterSenderService : BackgroundService
 
             // Calibration ranges can be narrow. Clamp the remapped value so small prediction noise
             // near either endpoint cannot become an oversized OSC eye/lid value.
-            var remappedWeight = weight.Remap(settings.Lower, settings.Upper, settings.Min, settings.Max);
+            var remappedWeight = RemapSafely(weight, settings);
             if (expression.Key is "/leftEyeWiden" or "/rightEyeWiden")
                 remappedWeight *= _eyeWidenGain;
             else if (expression.Key is "/leftEyeSquint" or "/rightEyeSquint")
                 remappedWeight *= _eyeSquintGain;
             else if (expression.Key is "/leftEyeBrow" or "/rightEyeBrow")
                 remappedWeight *= _eyeBrowGain;
+
             var msg = new OscMessage(_prefix + expression.Key,
-                Math.Clamp(remappedWeight, settings.Min, settings.Max));
-            _vrcftQueue.Enqueue(msg);
+                Math.Clamp(remappedWeight, Math.Min(settings.Min, settings.Max), Math.Max(settings.Min, settings.Max)));
+            EnqueueBounded(_vrcftQueue, msg);
         }
 
         // Native eye tracking (DFR / VRChat native) wants the raw, un-smoothed stream for the lowest
@@ -151,10 +164,10 @@ public class ParameterSenderService : BackgroundService
 
         var leftEyeLidSettings = _calibrationService.GetExpressionSettings("LeftEyeLid");
         var rightEyeLidSettings = _calibrationService.GetExpressionSettings("RightEyeLid");
-        var weightedLeftEyeLid = leftEyeLid.Remap(leftEyeLidSettings.Lower, leftEyeLidSettings.Upper, leftEyeLidSettings.Min, leftEyeLidSettings.Max);
-        var weightedRightEyeLid = rightEyeLid.Remap(rightEyeLidSettings.Lower, rightEyeLidSettings.Upper, rightEyeLidSettings.Min, rightEyeLidSettings.Max);
+        var weightedLeftEyeLid = RemapSafely(leftEyeLid, leftEyeLidSettings);
+        var weightedRightEyeLid = RemapSafely(rightEyeLid, rightEyeLidSettings);
         var averageLid = (weightedLeftEyeLid + weightedRightEyeLid) / 2f;
-        queue.Enqueue(new OscMessage("/tracking/eye/EyesClosedAmount", 1f - Math.Clamp(averageLid, 0f, 1f)));
+        EnqueueBounded(queue, new OscMessage("/tracking/eye/EyesClosedAmount", 1f - Math.Clamp(averageLid, 0f, 1f)));
 
         // Convert normalized eye positions to angles
         const float maxEyeAngle = 45f;
@@ -162,7 +175,7 @@ public class ParameterSenderService : BackgroundService
         leftEyeY *= -maxEyeAngle; // Negative because Y is inverted (up is negative pitch)
         rightEyeX *= maxEyeAngle;
         rightEyeY *= -maxEyeAngle; // Negative because Y is inverted (up is negative pitch)
-        queue.Enqueue(new OscMessage("/tracking/eye/LeftRightPitchYaw", leftEyeY, rightEyeX, rightEyeY, leftEyeX));
+        EnqueueBounded(queue, new OscMessage("/tracking/eye/LeftRightPitchYaw", leftEyeY, rightEyeX, rightEyeY, leftEyeX));
     }
 
     private void ProcessFaceExpressionData(OrderedFloatMap expressions)
@@ -176,10 +189,10 @@ public class ParameterSenderService : BackgroundService
 
             var msg = new OscMessage(_prefix + expression.Key,
                 Math.Clamp(
-                    weight.Remap(settings.Lower, settings.Upper, settings.Min, settings.Max),
-                    settings.Min,
-                    settings.Max));
-            _vrcftQueue.Enqueue(msg);
+                    RemapSafely(weight, settings),
+                    Math.Min(settings.Min, settings.Max),
+                    Math.Max(settings.Min, settings.Max)));
+            EnqueueBounded(_vrcftQueue, msg);
         }
     }
 
@@ -200,10 +213,43 @@ public class ParameterSenderService : BackgroundService
             return;
 
         _sendBuffer.Clear();
+        _sendBufferIndexes.Clear();
         while (queue.TryDequeue(out var message))
-            _sendBuffer.Add(message);
+        {
+            if (_sendBufferIndexes.TryGetValue(message.Address, out var existingIndex))
+            {
+                // When inference outpaces OSC, only the newest value for a parameter matters.
+                // Sending stale intermediate gaze values increases latency and visible jumping.
+                _sendBuffer[existingIndex] = message;
+            }
+            else
+            {
+                _sendBufferIndexes.Add(message.Address, _sendBuffer.Count);
+                _sendBuffer.Add(message);
+            }
+        }
 
         if (_sendBuffer.Count > 0)
             await sender.Send(_sendBuffer.ToArray(), cancellationToken);
+    }
+
+    private static void EnqueueBounded(ConcurrentQueue<OscMessage> queue, OscMessage message)
+    {
+        queue.Enqueue(message);
+        while (queue.Count > MaxQueuedMessages)
+            queue.TryDequeue(out _);
+    }
+
+    private static float RemapSafely(float value, Calibration.CalibrationParameter settings)
+    {
+        if (!float.IsFinite(value) || !float.IsFinite(settings.Lower) ||
+            !float.IsFinite(settings.Upper) || !float.IsFinite(settings.Min) ||
+            !float.IsFinite(settings.Max))
+            return Math.Min(settings.Min, settings.Max);
+
+        if (Math.Abs(settings.Upper - settings.Lower) < 1e-6f)
+            return settings.Min;
+
+        return value.Remap(settings.Lower, settings.Upper, settings.Min, settings.Max);
     }
 }

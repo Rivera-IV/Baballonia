@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>値が小さい方が100%速くなります。</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>重要!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>新しいbabbleトラッカーは、使用する前に接続された後20秒の遅延があります。 準備ができたらUSBプラグインが鳴ります!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>今後この警告を表示しない</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>却下する</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>BaballoniaをVRCFaceTrackingと一緒に使用している場合、これらのポートを変更する必要はありません</value>
   </data>
@@ -852,12 +840,6 @@ Wi-Fi認証情報を入力する必要はありません。トラッカーを「
 • Steam scout 1.0 ランタイム（sniper 3.0 ではない）を試す、libudev をインストールする、ソースからビルドする、または plugdev グループに参加する。
 • Steam と tarball リリースのみサポートしており、AUR パッケージはサポートしていません。
 • Babble ボードは Linux で UVC/シリアルをサポートしていないため、ワイヤレス構成を使用してください。</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>目/顔データを共有</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>アルゴリズム改善のため、匿名の目/顔データの共有にオプトイン</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>DFRを使用</value>

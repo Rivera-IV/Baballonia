@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>τιμή σημαίνει ότι μια μικρότερη έκφραση θα φτάσει 100% πιο γρήγορα.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Σημαντικό!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Νεότερα babble trackers έχουν μια 20 δεύτερη καθυστέρηση μετά την σύνδεση για να μπορούν να χρησιμοποιηθούν. Θα κάνει έναν ήχο σύνδεσης USB όταν είναι έτοιμο!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Να μην εμφανιστεί ξανά αυτή η προειδοποίηση</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Απόρριψη</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Αν χρησιμοποιείτε το Baballonia με το VRCFaceTracking, δεν χρειάζεται να αλλάξετε αυτές τις θύρες</value>
   </data>
@@ -852,12 +840,6 @@
 - Δοκιμάστε το runtime Steam scout 1.0 (όχι sniper 3.0), εγκαταστήστε το libudev, χτίστε από τον πηγαίο κώδικα, ή ενταχθείτε στην ομάδα plugdev.
 - Υποστηρίζουμε μόνο εκδόσεις Steam και tarball, όχι το πακέτο AUR.
 - Οι κάρτες Babble δεν υποστηρίζουν UVC/Σειριακό στο Linux, χρησιμοποιήστε μια ασύρματη διαμόρφωση.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Κοινοποίηση δεδομένων ματιών/προσώπου</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Συμφωνήστε με την κοινοποίηση ανώνυμων δεδομένων ματιών/προσώπου για τη βελτίωση των αλγορίθμων μας</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Χρήση DFR</value>

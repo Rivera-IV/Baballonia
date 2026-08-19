@@ -1,4 +1,5 @@
 ﻿using Baballonia.SDK;
+using Baballonia.IPCameraCapture;
 using Baballonia.Services.Inference.Platforms;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

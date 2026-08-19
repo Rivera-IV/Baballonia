@@ -8,11 +8,17 @@ public class OneEuroFilter : IFilter
     private readonly float _initialMinCutoff;
     private readonly float _initialBeta;
     private readonly Func<string, float>? _betaForKey;
+    private readonly Func<string, bool>? _bypassForKey;
+    private readonly Func<string, OrderedFloatMap, bool>? _freezeForKey;
+    private readonly Func<string, OrderedFloatMap, float?>? _maximumDeltaForKey;
     private bool _isInitialized;
 
     private string[] _keys;
     private float[] _minCutoff;
     private float[] _beta;
+    private bool[] _bypass;
+    private bool[] _frozen;
+    private int[] _resumeFrames;
     private float[] _dCutoff;
     private float[] _xPrev;
     private float[] _dxPrev;
@@ -29,11 +35,17 @@ public class OneEuroFilter : IFilter
     private DateTime _tPrev;
 
     public OneEuroFilter(float minCutoff = 1.0f, float beta = 0.0f,
-        Func<string, float>? betaForKey = null)
+        Func<string, float>? betaForKey = null,
+        Func<string, bool>? bypassForKey = null,
+        Func<string, OrderedFloatMap, bool>? freezeForKey = null,
+        Func<string, OrderedFloatMap, float?>? maximumDeltaForKey = null)
     {
         _initialMinCutoff = minCutoff;
         _initialBeta = beta;
         _betaForKey = betaForKey;
+        _bypassForKey = bypassForKey;
+        _freezeForKey = freezeForKey;
+        _maximumDeltaForKey = maximumDeltaForKey;
         _isInitialized = false;
     }
 
@@ -66,6 +78,53 @@ public class OneEuroFilter : IFilter
         {
             float val = xSpan[i];
 
+            if (_bypass[i])
+            {
+                // Latency-sensitive eye signals have dedicated processing in the eye pipeline.
+                // Passing them through avoids adding latency merely because the
+                // slower Widen/Squint/Brow expressions need noise reduction.
+                outSpan[i] = val;
+                _xPrev[i] = val;
+                _dxPrev[i] = 0.0f;
+                continue;
+            }
+
+            // Gaze inferred from a covered pupil is meaningless. Holding the public output later
+            // in the eye pipeline is not enough: if OneEuro consumes those hidden values, its
+            // private state drifts behind the closed lid and is released as a large jump when the
+            // eye opens. Freeze both value and velocity until the pupil is visible again.
+            if (_freezeForKey?.Invoke(_keys[i], x) == true)
+            {
+                outSpan[i] = _xPrev[i];
+                _dxPrev[i] = 0.0f;
+                _frozen[i] = true;
+                _resumeFrames[i] = 0;
+                continue;
+            }
+
+            if (_frozen[i])
+            {
+                _frozen[i] = false;
+                _resumeFrames[i] = 6;
+                _dxPrev[i] = 0.0f;
+            }
+
+            if (_resumeFrames[i] > 0)
+            {
+                // Resume with a fixed moderate cutoff. Using the ordinary beta term here would
+                // interpret the difference accumulated during occlusion as enormous eye speed and
+                // effectively jump straight to the first newly visible estimate.
+                const float reopeningCutoff = 3.0f;
+                var rResume = MathF.Tau * Math.Max(_minCutoff[i], reopeningCutoff) * elapsedTime;
+                var aResume = rResume / (rResume + 1.0f);
+                var resumed = aResume * val + (1.0f - aResume) * _xPrev[i];
+                _xPrev[i] = LimitDelta(_keys[i], x, _xPrev[i], resumed);
+                _dxPrev[i] = 0.0f;
+                outSpan[i] = _xPrev[i];
+                _resumeFrames[i]--;
+                continue;
+            }
+
             _dx[i] = (val - _xPrev[i]) / elapsedTime;
 
             float r_d = MathF.Tau * _dCutoff[i] * elapsedTime;
@@ -80,14 +139,29 @@ public class OneEuroFilter : IFilter
 
             _xHat[i] = a * val + (1.0f - a) * _xPrev[i];
 
-            _xPrev[i] = _xHat[i];
+            _xPrev[i] = LimitDelta(_keys[i], x, _xPrev[i], _xHat[i]);
             _dxPrev[i] = _dxHat[i];
 
-            outSpan[i] = _xHat[i];
+            outSpan[i] = _xPrev[i];
         }
 
         _tPrev = now;
         return _output;
+    }
+
+    private float LimitDelta(
+        string key,
+        OrderedFloatMap values,
+        float current,
+        float target)
+    {
+        var maximumDelta = _maximumDeltaForKey?.Invoke(key, values);
+        if (!maximumDelta.HasValue ||
+            !float.IsFinite(maximumDelta.Value) || maximumDelta.Value <= 0.0f ||
+            MathF.Abs(target - current) <= maximumDelta.Value)
+            return target;
+
+        return current + MathF.CopySign(maximumDelta.Value, target - current);
     }
 
     // True when x's output set differs from ours. The runner reuses one map per model, so a
@@ -120,6 +194,9 @@ public class OneEuroFilter : IFilter
         _keys = new string[length];
         _minCutoff = new float[length];
         _beta = new float[length];
+        _bypass = new bool[length];
+        _frozen = new bool[length];
+        _resumeFrames = new int[length];
         _dCutoff = new float[length];
         _xPrev = new float[length];
         _dxPrev = new float[length];
@@ -136,6 +213,7 @@ public class OneEuroFilter : IFilter
             _xPrev[i] = kvp.Value;
             _minCutoff[i] = _initialMinCutoff;
             _beta[i] = _betaForKey?.Invoke(kvp.Key) ?? _initialBeta;
+            _bypass[i] = _bypassForKey?.Invoke(kvp.Key) ?? false;
             _dCutoff[i] = 1.0f;
             _dxPrev[i] = 0.0f;
             i++;

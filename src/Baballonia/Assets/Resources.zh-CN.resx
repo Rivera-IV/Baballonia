@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>值意味着一个较小的表达式会更快地达到100%。</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>重要！</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>较新的可携带追踪器在使用前被接通后会被延迟20秒。 一旦准备好，它将使USB插入声音！</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>不再显示此警告</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>关闭</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>如果您将Baballonia与VRCFaceTracking一起使用，则无需更改这些端口</value>
   </data>
@@ -852,12 +840,6 @@
 • 尝试 Steam scout 1.0 运行时（不是 sniper 3.0），安装 libudev，从源代码构建，或加入 plugdev 组。
 • 我们只支持 Steam 和 tarball 版本，不支持 AUR 包。
 • Babble 板在 Linux 上不支持 UVC/串口，请使用无线配置。</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>共享眼睛/面部数据</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>选择共享匿名眼睛/面部数据以改进我们的算法</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>使用DFR</value>

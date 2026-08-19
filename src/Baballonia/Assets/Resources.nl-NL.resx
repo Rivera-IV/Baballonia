@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>waarde betekent dat een kleinere expressie 100% sneller bereikt.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Belangrijk!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Nieuwere babbel trackers hebben een vertraging van 20 seconden nadat ze zijn aangesloten voordat ze kunnen worden gebruikt. Het maakt een USB-plugging-in geluid wanneer het klaar is!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Deze waarschuwing niet meer weergeven</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Uitschakelen</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Als u Baballonia gebruikt met VRCFaceTracking, hoeft u deze poorten niet te wijzigen</value>
   </data>
@@ -852,12 +840,6 @@ Dit is meestal eenvoudig op te lossen! Installeer gewoon de "Tracking Loss Fix" 
 - Probeer de Steam scout 1.0 runtime (niet sniper 3.0), installeer libudev, bouw vanaf de broncode, of voeg je toe aan de plugdev-groep.
 - We ondersteunen alleen Steam- en tarball-releases, niet het AUR-pakket.
 - Babble-boards ondersteunen geen UVC/Serieel op Linux, gebruik een draadloze configuratie.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Oog/gezichtsdata delen</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Instemmen met het delen van anonieme oog/gezichtsdata om onze algoritmes te verbeteren</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>DFR gebruiken</value>

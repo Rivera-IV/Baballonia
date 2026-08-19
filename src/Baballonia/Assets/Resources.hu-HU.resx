@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>érték azt jelenti, hogy egy kisebb kifejezés gyorsabban éri el a 100%-ot.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Fontos!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Az újabb babble követőknek 20 másodperces késleltetésük van a csatlakozás után, mielőtt használhatók lennének. USB csatlakozási hangot ad ki, amikor kész!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Ne jelenítse meg újra ezt a figyelmeztetést</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Eltüntetés</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Ha a Baballonia-t VRCFaceTracking-kel használja, nem kell módosítani ezeket a portokat</value>
   </data>
@@ -852,12 +840,6 @@ Ez általában könnyen javítható! Csak telepítse a "Tracking Loss Fix" firmw
 - Próbálja ki a Steam scout 1.0 futtatókörnyezetet (nem sniper 3.0), telepítse a libudev-t, fordítsa forráskódból, vagy csatlakozzon a plugdev csoporthoz.
 - Csak a Steam és tarball kiadásokat támogatjuk, nem az AUR csomagot.
 - A Babble lapok nem támogatják az UVC/Soros portot Linuxon, használjon vezeték nélküli konfigurációt.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Szem-/arcadat megosztása</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Beleegyezés anonim szem-/arcadatok megosztásához algoritmusaink fejlesztéséhez</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>DFR használata</value>

@@ -10,7 +10,9 @@
 	<AssemblyVersion>1.1.1.1</AssemblyVersion>
 	<FileVersion>1.1.1.1</FileVersion>
 	<!-- Informational/titlebar version; CI overrides via -p:Version (workflow version-number input). -->
-	<Version>1.1.1.1</Version>
+	<Version>1.1.1.1-expressions.preview.1</Version>
+	<Product>Baballonia Expressions Preview</Product>
+	<AssemblyTitle>Baballonia Expressions Preview</AssemblyTitle>
 	<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
 
@@ -60,7 +62,6 @@
         <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.12" />
-        <PackageReference Include="AWSSDK.S3" Version="4.0.18.8" />
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.4" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.4" />

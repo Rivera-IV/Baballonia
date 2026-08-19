@@ -56,7 +56,7 @@ public class FirmwareSessionV2(ICommandSender commandSender, ILogger logger) : I
 
             var response = ReadResponse(timeout);
             if (response == null)
-                return FirmwareResponse<JsonDocument>.Failure("Wtf? how did this happen?");
+                return FirmwareResponse<JsonDocument>.Failure("No valid firmware response was received.");
             var result = response.results.First().result;
             return result.status == "success"
                 ? FirmwareResponse<JsonDocument>.Success(result.data)
@@ -90,7 +90,7 @@ public class FirmwareSessionV2(ICommandSender commandSender, ILogger logger) : I
 
             var response = ReadResponse(timeout);
             if (response == null)
-                return FirmwareResponse<T>.Failure("Wtf? how did this happen?");
+                return FirmwareResponse<T>.Failure("No valid firmware response was received.");
             var result = response.results.First().result;
             if (result.status == "success")
             {

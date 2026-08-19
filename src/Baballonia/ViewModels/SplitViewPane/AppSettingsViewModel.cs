@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using OscCore;
 using System;
 using System.Collections.ObjectModel;
+using System.Threading;
 
 namespace Baballonia.ViewModels.SplitViewPane;
 
@@ -64,10 +65,6 @@ public partial class AppSettingsViewModel : ViewModelBase
     private bool _checkForUpdates;
 
     [ObservableProperty]
-    [property: SavedSetting("AppSettings_ShareEyeData", false)]
-    private bool _shareEyeData;
-
-    [ObservableProperty]
     private string _logLevel;
 
     public ObservableCollection<string> LowestLogLevel { get; } =
@@ -100,6 +97,10 @@ public partial class AppSettingsViewModel : ViewModelBase
     private bool _showDebugMenu;
 
     [ObservableProperty]
+    [property: SavedSetting("AppSettings_LiveEyeDiagnostic", false)]
+    private bool _liveEyeDiagnostic;
+
+    [ObservableProperty]
     [property: SavedSetting("AppSettings_StabilizeEyes", true)]
     private bool _stabilizeEyes;
 
@@ -117,16 +118,16 @@ public partial class AppSettingsViewModel : ViewModelBase
 
     [ObservableProperty] private bool _onboardingEnabled;
 
-    public string MachineID => _identityService.GetUniqueUserId();
-
     public IOscTarget OscTarget { get; }
 
     private readonly FacePipelineManager _facePipelineManager;
     private readonly EyePipelineManager _eyePipelineManager;
-    private readonly IIdentityService _identityService;
+    private readonly EyeDiagnosticRecorder _eyeDiagnosticRecorder;
     private readonly ILogger<AppSettingsViewModel> _logger;
     private readonly ILocalSettingsService _localSettingsService;
     private readonly OpenVRService? _openVrService;
+    private readonly SemaphoreSlim _eyeDiagnosticToggleGate = new(1, 1);
+    private bool _suppressEyeDiagnosticToggle;
     // Set once the constructor finishes loading persisted settings, so OnSteamvrAutoStartChanged
     // can tell a user toggle apart from the initial load (which must not touch OpenVR).
     private bool _settingsLoaded;
@@ -134,9 +135,9 @@ public partial class AppSettingsViewModel : ViewModelBase
     public AppSettingsViewModel(
         FacePipelineManager facePipelineManager,
         EyePipelineManager eyePipelineManager,
+        EyeDiagnosticRecorder eyeDiagnosticRecorder,
         ILocalSettingsService localSettingsService,
         IOscTarget oscTarget,
-        IIdentityService identityService,
         GithubService githubService,
         ParameterSenderService parameterSenderService,
         ILogger<AppSettingsViewModel> logger,
@@ -146,7 +147,7 @@ public partial class AppSettingsViewModel : ViewModelBase
         _localSettingsService = localSettingsService;
         _facePipelineManager = facePipelineManager;
         _eyePipelineManager = eyePipelineManager;
-        _identityService = identityService;
+        _eyeDiagnosticRecorder = eyeDiagnosticRecorder;
         _logger = logger;
         // OpenVRService is only registered on supported desktop OSes; resolve it optionally
         // so the SteamVR-autostart toggle works there and no-ops elsewhere (see null guard below).
@@ -155,7 +156,7 @@ public partial class AppSettingsViewModel : ViewModelBase
 
         LogLevel = _localSettingsService.ReadSetting("AppSettings_LogLevel", "Debug");
 
-        // Handle edge case where OSC port is used and the system freaks out
+        // Restore the default when the persisted OSC output port is invalid.
         if (OscTarget.OutPort == 0)
         {
             const int port = 8888;
@@ -198,6 +199,63 @@ public partial class AppSettingsViewModel : ViewModelBase
     partial void OnShowDebugMenuChanged(bool value)
     {
         WeakReferenceMessenger.Default.Send(new ShowDebugMenuChangedMessage(value));
+    }
+
+    async partial void OnLiveEyeDiagnosticChanged(bool value)
+    {
+        if (!_settingsLoaded || _suppressEyeDiagnosticToggle)
+            return;
+
+        await _eyeDiagnosticToggleGate.WaitAsync();
+        try
+        {
+            // A user can toggle twice while the previous disk flush is finishing. Only apply the
+            // newest requested state once this operation owns the recorder.
+            if (value != LiveEyeDiagnostic)
+                return;
+
+            if (value)
+            {
+                if (_eyeDiagnosticRecorder.IsRecording)
+                    return;
+
+                var directory = _eyeDiagnosticRecorder.StartLiveRecording();
+                _logger.LogInformation(
+                    "Recording local live eye diagnostic to {Path}", directory);
+            }
+            else
+            {
+                var result = await _eyeDiagnosticRecorder.StopAsync();
+                if (result != null)
+                {
+                    _logger.LogInformation(
+                        "Stopped local live eye diagnostic with {SampleCount} samples at {Path}",
+                        result.SampleCount, result.DirectoryPath);
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Could not change local live eye diagnostic state");
+
+            // Keep the checkbox truthful if starting or stopping the recorder failed. The guard
+            // prevents this corrective property update from recursively operating the recorder.
+            _suppressEyeDiagnosticToggle = true;
+            try
+            {
+                LiveEyeDiagnostic = _eyeDiagnosticRecorder.IsRecording;
+                _localSettingsService.SaveSetting(
+                    "AppSettings_LiveEyeDiagnostic", LiveEyeDiagnostic);
+            }
+            finally
+            {
+                _suppressEyeDiagnosticToggle = false;
+            }
+        }
+        finally
+        {
+            _eyeDiagnosticToggleGate.Release();
+        }
     }
 
     partial void OnLogLevelChanged(string value)

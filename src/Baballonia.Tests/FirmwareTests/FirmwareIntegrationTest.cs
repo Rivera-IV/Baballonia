@@ -8,17 +8,21 @@ namespace Baballonia.Tests.FirmwareTests;
 
 // Here we'll put integration testing with a real microcontroller
 [TestClass]
+[TestCategory("Hardware")]
 public class FirmwareIntegrationTest
 {
-    private static readonly string PORT = "COM4";
-    private static readonly string WIFI_SSID = "ASUS_50";
-    private static readonly string WIFI_PWD = "172839456";
+    private static readonly string PORT = Environment.GetEnvironmentVariable("BABALLONIA_TEST_SERIAL_PORT") ?? "";
+    private static readonly string WIFI_SSID = Environment.GetEnvironmentVariable("BABALLONIA_TEST_WIFI_SSID") ?? "";
+    private static readonly string WIFI_PWD = Environment.GetEnvironmentVariable("BABALLONIA_TEST_WIFI_PASSWORD") ?? "";
 
     private ILogger _logger;
 
     [TestInitialize]
     public void Initialize()
     {
+        if (string.IsNullOrWhiteSpace(PORT))
+            Assert.Inconclusive("Set BABALLONIA_TEST_SERIAL_PORT to run hardware tests.");
+
         var loggerFactory = LoggerFactory.Create(builder =>
         {
             builder
@@ -39,6 +43,7 @@ public class FirmwareIntegrationTest
     [TestMethod]
     public void FindAndConnectWifiSuccess()
     {
+        RequireWifiConfiguration();
         var session = new FirmwareSessionV1(new SerialCommandSender(PORT), _logger);
 
         session.WaitForHeartbeat(TimeSpan.FromSeconds(10));
@@ -66,6 +71,7 @@ public class FirmwareIntegrationTest
     [TestMethod]
     public void FindAndConnectWifiFail()
     {
+        RequireWifiConfiguration();
         var session = new FirmwareSessionV1(new SerialCommandSender(PORT), _logger);
 
         session.WaitForHeartbeat(TimeSpan.FromSeconds(10));
@@ -88,5 +94,12 @@ public class FirmwareIntegrationTest
         session.SendCommand(new FirmwareRequests.SetPausedRequest(false), TimeSpan.FromSeconds(30));
 
         session.Dispose();
+    }
+
+    private static void RequireWifiConfiguration()
+    {
+        if (string.IsNullOrWhiteSpace(WIFI_SSID) || string.IsNullOrWhiteSpace(WIFI_PWD))
+            Assert.Inconclusive(
+                "Set BABALLONIA_TEST_WIFI_SSID and BABALLONIA_TEST_WIFI_PASSWORD to run Wi-Fi tests.");
     }
 }

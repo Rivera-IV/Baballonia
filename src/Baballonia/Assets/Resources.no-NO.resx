@@ -735,29 +735,11 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>verdien betyr at et mindre uttrykk når 100 % raskere.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Viktig!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Nyere babble trackere har en 20 sekunders forsinkelse etter å ha blitt tilkoblet før de kan brukes. Den lager en USB-tilkobling til lydavspilling når den er klar!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Ikke vis denne advarselen igjen</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Avvis</value>
-  </data>
   <data name="Home_Cameras_Linux_Workarounds" xml:space="preserve">
     <value>Midlertidige løsninger:
 - Prøv Steam scout 1.0 runtime (ikke sniper 3.0), installer libudev, bygg fra kildekoden, eller bli med i plugdev-gruppen.
 - Vi støtter kun Steam- og tarball-utgivelser, ikke AUR-pakken.
 - Babble-kort støtter ikke UVC/Serielt på Linux, bruk en trådløs konfigurasjon.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Del øye-/ansiktsdata</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Samtykk til å dele anonyme øye-/ansiktsdata for å forbedre våre algoritmer</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Bruk DFR</value>

@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>valor significa que uma expressão menor alcançará 100% mais rápido.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Importante!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Mais recentes rastreadores de bebês têm um atraso de 20 segundos após serem conectados antes que possam ser utilizados. Ele emitirá um som USB para plug-ins quando estiver pronto!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Não mostrar este aviso novamente</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Descartar</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Se estiver a usar Baballonia com VRCFaceTracking, não precisa alterar estas portas</value>
   </data>
@@ -852,12 +840,6 @@ Isto geralmente é fácil de corrigir! Apenas instale o firmware "Tracking Loss 
 - Tente o runtime Steam scout 1.0 (não sniper 3.0), instale libudev, compile a partir do código fonte, ou junte-se ao grupo plugdev.
 - Suportamos apenas lançamentos Steam e tarball, não o pacote AUR.
 - As placas Babble não suportam UVC/Serial no Linux, use uma configuração sem fios.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Partilhar dados dos olhos/rosto</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Aceitar partilhar dados anónimos dos olhos/rosto para melhorar os nossos algoritmos</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Usar DFR</value>

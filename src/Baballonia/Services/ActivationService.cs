@@ -1,13 +1,10 @@
 ﻿using Baballonia.Contracts;
-using CommunityToolkit.Mvvm.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace Baballonia.Services;
 
 public class ActivationService(
     IThemeSelectorService themeSelectorService,
-    ILanguageSelectorService languageSelectorService,
-    ILogger<ActivationService> logger)
+    ILanguageSelectorService languageSelectorService)
     : IActivationService
 {
     public void Activate(object activationArgs)
@@ -17,15 +14,7 @@ public class ActivationService(
         themeSelectorService.Initialize();
         themeSelectorService.SetRequestedTheme();
 
-        // Guard against mobile
+        // Desktop-only activation continues below when additional startup work is enabled.
         if (!Utils.IsSupportedDesktopOS) return;
-
-        // // Checking to see if AutoStart has checks pass during service activation
-        // var openVrService = Ioc.Default.GetService<OpenVRService>();
-        // logger.LogInformation("Configuring OpenVR...");
-        // if (!openVrService!.AutoStart())
-        // {
-        //     logger.LogWarning("Failed to configure OpenVR during ActivationService startup. Skipping.");
-        // }
     }
 }

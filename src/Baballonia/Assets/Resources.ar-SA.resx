@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>القيمة تعني أن التعبير الأصغر سوف يصل إلى 100% أسرع.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>مهم!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>ويحصل المتتبعون الأحدث على 20 ثانية من التأخير بعد توصيلهم قبل استخدامهم. سوف تصنع صوت توصيل USB عندما يكون جاهزاً!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>لا تظهر هذا التحذير مرة أخرى</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>تجاهل</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>إذا كنت تستخدم Baballonia مع VRCFaceTracking، فلا داعي لتغيير هذه المنافذ</value>
   </data>
@@ -852,12 +840,6 @@
 • جرب وقت تشغيل Steam scout 1.0 (ليس نايبر 3.0)، قم بتثبيت libudev، أو انضم إلى مجموعة plugdev.
 • نحن ندعم فقط إصدارات Steam و tarball، وليست حزمة AUR.
 • لوحات Babble لا تدعم UVC/المنفذ التسلسلي على Linux، استخدم تكوين لاسلكي.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>مشاركة بيانات العين/الوجه</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>الموافقة على مشاركة بيانات العين/الوجه المجهولة لتحسين خوارزمياتنا</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>استخدام DFR</value>

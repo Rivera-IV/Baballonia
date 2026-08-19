@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>value means a smaller expression will reach 100% faster.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Important!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Newer babble trackers have a 20 second delay after being plugged in before they can be used. It will make a USB plugging-in sound when it is ready!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Don't show this warning again</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Dismiss</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Si utilitzeu Baballonia amb VRCFaceTracking, no cal canviar aquests ports</value>
   </data>
@@ -852,12 +840,6 @@ Això normalment és fàcil d'arreglar! Simplement instal·leu el firmware "Trac
 - Proveu el runtime Steam scout 1.0 (no sniper 3.0), instal·leu libudev, compileu des del codi font, o uniu-vos al grup plugdev.
 - Només donem suport a les versions Steam i tarball, no al paquet AUR.
 - Les plaques Babble no suporten UVC/Sèrie a Linux, utilitzeu una configuració sense fils.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Compartir dades d'ulls/cara</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Acceptar compartir dades anònimes d'ulls/cara per millorar els nostres algoritmes</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Utilitzar DFR</value>

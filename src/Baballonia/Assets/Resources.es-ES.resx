@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>significa que una expresión más pequeña alcanzará 100% más rápido.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>¡Importante!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Los nuevos rastreadores de puñetazos tienen un retraso de 20 segundos después de ser enchufados antes de que puedan ser usados. ¡Hará un sonido USB plugging-in cuando esté listo!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>No volver a mostrar esta advertencia</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Descartar</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Si estás usando Baballonia con VRCFaceTracking, no hay necesidad de cambiar estos puertos</value>
   </data>
@@ -852,12 +840,6 @@ No necesitas ingresar ninguna credencial Wi-Fi. Simplemente cambia el tracker a 
 • Prueba el runtime Steam scout 1.0 (no sniper 3.0), instala libudev, compila desde el código fuente, o únete al grupo plugdev.
 • Solo soportamos lanzamientos de Steam y tarball, no el paquete AUR.
 • Las placas Babble no soportan UVC/Serie en Linux, usa una configuración inalámbrica.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Compartir datos de ojos/cara</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Optar por compartir datos anónimos de ojos/cara para mejorar nuestros algoritmos</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Usar DFR</value>

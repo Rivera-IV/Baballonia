@@ -38,6 +38,17 @@ public static class CaptureFlags
     // FLAG_ROUTINE_BIT1 (gaze-valid), so they train gaze too but are excluded from supervised expression.
     public const uint FLAG_FREE_EXPRESSION = FLAG_ROUTINE_2;
 
+    // The lid/widen/squint/brow labels on this frame are intentional ground truth. Ordinary gaze
+    // frames do not set this bit because an unavoidable natural blink or spontaneous expression
+    // would otherwise be mislabeled as fully open and neutral.
+    public const uint FLAG_EXPRESSION_LABELS_VALID = FLAG_ROUTINE_3;
+
+    // Head-specific supervision masks. A frame may safely train one output without pretending
+    // that every other expression is neutral (for example: a wide-eye wink trains only lids).
+    public const uint FLAG_LID_LABELS_VALID = FLAG_ROUTINE_4;
+    public const uint FLAG_EYE_SHAPE_LABELS_VALID = FLAG_ROUTINE_5;
+    public const uint FLAG_BROW_LABELS_VALID = FLAG_ROUTINE_6;
+
     public const uint FLAG_CONVERGENCE = 1u << 24;
     public const uint FLAG_IN_MOVEMENT = 1u << 25;
     public const uint FLAG_RESTING = 1u << 26; // Unused right now, was used to denote tutorial sections

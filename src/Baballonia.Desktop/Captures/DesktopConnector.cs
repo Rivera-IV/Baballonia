@@ -25,8 +25,15 @@ public class DesktopConnector : IPlatformConnector
         _logger = logger;
         _serviceProvider = serviceProvider;
 
-        // Load all modules
-        var dlls = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Modules"), "*.dll");
+        // Load all modules. A malformed/incomplete portable package used to crash here before
+        // the UI (and file logger) could start. Treat a missing directory as an empty module set;
+        // the publish target is still responsible for shipping the capture backends.
+        var modulesDirectory = Path.Combine(AppContext.BaseDirectory, "Modules");
+        var dlls = Directory.Exists(modulesDirectory)
+            ? Directory.GetFiles(modulesDirectory, "*.dll")
+            : Array.Empty<string>();
+        if (dlls.Length == 0)
+            _logger.LogWarning("No capture modules found in '{ModulesDirectory}'", modulesDirectory);
         _logger.LogDebug("Found {DllCount} DLL files in application directory: {DllFiles}", dlls.Length,
             string.Join(", ", dlls.Select(Path.GetFileName)));
         _captureFactories = LoadAssembliesFromPath(dlls);

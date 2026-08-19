@@ -2,7 +2,6 @@
 using Baballonia.Assets;
 using Baballonia.Contracts;
 using Baballonia.Models;
-using Baballonia.Services;
 using Baballonia.ViewModels.SplitViewPane;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.DependencyInjection;
@@ -17,8 +16,6 @@ namespace Baballonia.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
-    private readonly DropOverlayService _dropOverlayService;
-
     public MainViewModel(IMessenger messenger)
     {
         Items = Utils.IsSupportedDesktopOS ?
@@ -26,9 +23,6 @@ public partial class MainViewModel : ViewModelBase
             new ObservableCollection<ListItemTemplate>(_mobileTemplates);
 
         SelectedListItem = Items.First(vm => vm.ModelType == typeof(HomePageViewModel));
-
-        _dropOverlayService = Ioc.Default.GetService<DropOverlayService>()!;
-        _dropOverlayService.ShowOverlayChanged += SetOverlay;
 
         // The Debug / Performance page is an advanced, opt-in entry: hidden by default and revealed
         // via Settings > Advanced > "Show Debug menu". Seed from the saved setting, then stay in sync
@@ -64,17 +58,12 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private void SetOverlay(bool show)
-    {
-        IsDropOverlayVisible = show;
-    }
-
     private readonly List<ListItemTemplate> _desktopTemplates =
     [
         new(typeof(HomePageViewModel), "HomeRegular", Resources.Home_Title_Header), // Home
         new(typeof(CalibrationViewModel), "EditRegular", Resources.Calibration_Title_Header), // Calibration
         new(typeof(FirmwareViewModel), "DeveloperBoardRegular", Resources.Firmware_Title_Header), // Firmware
-        new(typeof(VrcViewModel), "CommentRegular", "VRChat"), // VRChat. No translation :P
+        new(typeof(VrcViewModel), "CommentRegular", "VRChat"),
         new(typeof(OutputPageViewModel), "TextFirstLineRegular", Resources.Output_Title_Header), // Output
         new(typeof(AppSettingsViewModel), "SettingsRegular", Resources.Settings_Title_Header), // Settings
         new(typeof(AboutPageViewModel), "InfoRegular", Resources.About_Title_Header), // About
@@ -94,9 +83,6 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isPaneOpen;
-    [ObservableProperty]
-    private bool _isDropOverlayVisible;
-
     [ObservableProperty] private ViewModelBase _currentPage;
 
     [ObservableProperty]
@@ -139,7 +125,5 @@ public partial class MainViewModel : ViewModelBase
 
     public void DetachedFromVisualTree()
     {
-        _dropOverlayService.Hide();
-        _dropOverlayService.ShowOverlayChanged -= SetOverlay;
     }
 }

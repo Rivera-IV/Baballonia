@@ -733,29 +733,11 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>vrednosti znači da će manji izraz brže dostići 100%.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Važno!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Noviji babble trakeri imaju kašnjenje od 20 sekundi nakon priključivanja pre nego što mogu da se koriste. Oglasiti će se zvukom priključivanja USB kada bude spreman!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Nemoj ponovo da prikazuješ ovo upozorenje</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Odbaci</value>
-  </data>
   <data name="Home_Cameras_Linux_Workarounds" xml:space="preserve">
     <value>Privremena rešenja:
 - Probajte Steam scout 1.0 runtime (ne sniper 3.0), instalirajte libudev, izgradite iz izvornog koda, ili se pridružite plugdev grupi.
 - Podržavamo samo Steam i tarball izdanja, ne AUR paket.
 - Babble ploče ne podržavaju UVC/Serijski na Linuxu, koristite bežičnu konfiguraciju.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Дели податке о очима/лицу</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Прихватите дељење анонимних података о очима/лицу за побољшање наших алгоритама</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Користи DFR</value>

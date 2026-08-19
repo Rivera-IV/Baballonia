@@ -6,7 +6,7 @@ using System.Linq;
 
 namespace Baballonia;
 
-// NativeMenu helper class with a few hacks to handle locale
+// Keeps native tray-menu labels synchronized with the selected locale.
 public partial class App : Application
 {
     private TrayIcon _appTrayTooltip;

@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>arvo tarkoittaa, että pienempi lauseke saavuttaa 100% nopeammin.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Tärkeää!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Uudemmat babble trackers on 20 sekunnin viive sen jälkeen, kun se on kytketty ennen kuin niitä voidaan käyttää. Se tekee USB-liitännäisen äänen, kun se on valmis!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Älä näytä tätä varoitusta uudelleen</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Hylkää</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Jos käytät Baballoniaa VRCFaceTrackingin kanssa, sinun ei tarvitse muuttaa näitä portteja</value>
   </data>
@@ -852,12 +840,6 @@ Tämä on yleensä helppo korjata! Asenna vain "Tracking Loss Fix" -laiteohjelmi
 - Kokeile Steam scout 1.0 -ajonaikaa (ei sniper 3.0), asenna libudev, käännä lähdekoodista, tai liity plugdev-ryhmään.
 - Tukemme vain Steam- ja tarball-julkaisuja, ei AUR-pakettia.
 - Babble-kortit eivät tue UVC/Sarjaa Linuxissa, käytä langatonta määritystä.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Jaa silmä-/kasvodata</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Suostu anonyymien silmä-/kasvojen datan jakamiseen algoritmien parantamiseksi</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Käytä DFR</value>

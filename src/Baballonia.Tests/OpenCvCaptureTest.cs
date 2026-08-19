@@ -8,6 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Baballonia.Tests;
 
 [TestClass]
+[TestCategory("Hardware")]
 [TestSubject(typeof(OpenCvCapture))]
 public class OpenCvCaptureTest
 {

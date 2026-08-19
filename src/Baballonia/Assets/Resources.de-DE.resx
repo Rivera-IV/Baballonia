@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>-Wert bedeutet, dass ein kleinerer Ausdruck 100% schneller erreicht wird.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Wichtig!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Neuere babble Tracker haben eine Verzögerung von 20 Sekunden nach dem Einstecken bevor sie verwendet werden können. Es macht einen USB-Anschluss, wenn er bereit ist!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Diese Warnung nicht mehr anzeigen</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Verwerfen</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Wenn Sie Baballonia mit VRCFaceTracking verwenden, müssen Sie diese Ports nicht ändern</value>
   </data>
@@ -853,12 +841,6 @@ Dies ist normalerweise einfach zu beheben! Installieren Sie einfach die "Trackin
 • Wir unterstützen nur Steam- und tarball-Versionen, nicht das AUR-Paket.
 • Babble-Boards unterstützen kein UVC/Seriell unter Linux, verwenden Sie eine drahtlose Konfiguration.</value>
   </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Augen-/Gesichtsdaten teilen</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Anonyme Augen-/Gesichtsdaten teilen, um unsere Algorithmen zu verbessern</value>
-  </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>DFR verwenden</value>
   </data>
@@ -930,5 +912,11 @@ Dies ist normalerweise einfach zu beheben! Installieren Sie einfach die "Trackin
   </data>
   <data name="Settings_EyeBrowGain_Description" xml:space="preserve">
     <value>Verstärkt den kalibrierten Augenbrauenwert für VRChat. 1,00 lässt ihn unverändert.</value>
+  </data>
+  <data name="Settings_LiveEyeDiagnostic_Header" xml:space="preserve">
+    <value>Live-Augendiagnose aufzeichnen</value>
+  </data>
+  <data name="Settings_LiveEyeDiagnostic_Description" xml:space="preserve">
+    <value>Zeichnet Augenbilder und Trackingwerte lokal auf, bis der Haken entfernt wird. Es wird nichts hochgeladen. Lange Aufnahmen können viel Speicherplatz belegen.</value>
   </data>
 </root>

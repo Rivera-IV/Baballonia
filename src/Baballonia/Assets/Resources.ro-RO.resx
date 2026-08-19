@@ -726,18 +726,6 @@
   <data name="Calibration_Instructions_Bullet2_2" xml:space="preserve">
     <value>valoare înseamnă că o expresie mai mică va ajunge 100% mai repede.</value>
   </data>
-  <data name="DropOverlay_Important_Header" xml:space="preserve">
-    <value>Important!</value>
-  </data>
-  <data name="DropOverlay_Message" xml:space="preserve">
-    <value>Urmăritorii pentru bebeluși mai noi au o întârziere de 20 de secunde după ce au fost conectați înainte de a putea fi utilizați. Va face un sunet de conectare USB atunci când este gata!</value>
-  </data>
-  <data name="DropOverlay_DontShowAgain" xml:space="preserve">
-    <value>Nu mai afișa această avertizare</value>
-  </data>
-  <data name="DropOverlay_Dismiss_Button" xml:space="preserve">
-    <value>Renunţaţi</value>
-  </data>
   <data name="Settings_OSC_VRCFT_Warning" xml:space="preserve">
     <value>Dacă folosiți Baballonia cu VRCFaceTracking, nu trebuie să schimbați aceste porturi</value>
   </data>
@@ -852,12 +840,6 @@ Acest lucru este de obicei ușor de reparat! Doar instalați firmware-ul "Tracki
 - Încercați runtime-ul Steam scout 1.0 (nu sniper 3.0), instalați libudev, compilați din sursă, sau alăturați-vă grupului plugdev.
 - Suportăm doar lansările Steam și tarball, nu pachetul AUR.
 - Plăcile Babble nu suportă UVC/Seriale pe Linux, folosiți o configurație wireless.</value>
-  </data>
-  <data name="Settings_ShareData_Header" xml:space="preserve">
-    <value>Partajați date ochi/feță</value>
-  </data>
-  <data name="Settings_ShareData_Description" xml:space="preserve">
-    <value>Acceptați partajarea de date anonime ochi/feță pentru a îmbunătăți algoritmii noștri</value>
   </data>
   <data name="Settings_DFR_Header" xml:space="preserve">
     <value>Folosiți DFR</value>
