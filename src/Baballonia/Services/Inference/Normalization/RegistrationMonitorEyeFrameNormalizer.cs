@@ -24,10 +24,10 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
     private const float MaximumMeasuredRotationDegrees = 6.0f;
     private const float MaximumAppliedTranslationPixels = 12.0f;
     private const float MaximumAppliedRotationDegrees = 5.0f;
-    private const int RequiredConsistentMeasurements = 3;
+    private const int RequiredConsistentMeasurements = 4;
     private const float CandidateTranslationTolerancePixels = 1.75f;
     private const float CandidateRotationToleranceDegrees = 1.0f;
-    private const float CorrectionSmoothing = 0.25f;
+    private const float CorrectionSmoothing = 0.10f;
     private readonly IEyePipelineEventBus _eventBus;
     private readonly object _sync = new();
     private readonly RegistrationCorrectionTracker _leftCorrection = new();
@@ -656,6 +656,9 @@ public sealed class RegistrationMonitorEyeFrameNormalizer : IEyeFrameNormalizer
                     -MaximumAppliedRotationDegrees,
                     MaximumAppliedRotationDegrees)
             };
+            // Require a longer consistent streak and follow later estimates conservatively. The
+            // first confirmed correction is already backed by the complete streak; subsequent eye
+            // motion must not drag the registration transform around the crop.
             _confirmed = HasCorrection
                 ? Lerp(_confirmed, bounded, CorrectionSmoothing)
                 : bounded;

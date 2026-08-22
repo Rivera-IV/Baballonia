@@ -7,12 +7,12 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	<NoWarn>CS8618;CS8509;CS0067;CS8613;CS8622;MVVMTK0034</NoWarn>
 	<Company>Paradigm Reality Enhancement Labs</Company>
-	<AssemblyVersion>1.1.1.1</AssemblyVersion>
-	<FileVersion>1.1.1.1</FileVersion>
+	<AssemblyVersion>0.1.0.0</AssemblyVersion>
+	<FileVersion>0.1.0.0</FileVersion>
 	<!-- Informational/titlebar version; CI overrides via -p:Version (workflow version-number input). -->
-	<Version>1.1.1.1-expressions.preview.1</Version>
-	<Product>Baballonia Expressions Preview</Product>
-	<AssemblyTitle>Baballonia Expressions Preview</AssemblyTitle>
+	<Version>0.1.0</Version>
+	<Product>Baballonia Next</Product>
+	<AssemblyTitle>Baballonia Next</AssemblyTitle>
 	<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
 
@@ -166,6 +166,7 @@
 	  <EmbeddedResource Include="eyeModel.onnx">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </EmbeddedResource>
+		<EmbeddedResource Include="Assets\DiagnosticUploadPublicKey.pem" />
 	</ItemGroup>
 	<ItemGroup>
 	  <Folder Include="Firmware\Linux\" />

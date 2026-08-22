@@ -1,0 +1,67 @@
+<Window
+    x:Class="Baballonia.Views.UpdateDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="640"
+    Height="500"
+    MinWidth="520"
+    MinHeight="420"
+    CanResize="True"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner">
+  <Grid Margin="28" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="14">
+    <StackPanel Grid.Row="0" Spacing="6">
+      <TextBlock
+          x:Name="HeadingText"
+          FontSize="25"
+          FontWeight="SemiBold"
+          TextWrapping="Wrap" />
+      <TextBlock
+          x:Name="VersionText"
+          FontSize="15"
+          Foreground="{DynamicResource SystemChromeGrayColor}"
+          TextWrapping="Wrap" />
+    </StackPanel>
+
+    <TextBlock
+        x:Name="ReleaseNotesHeadingText"
+        Grid.Row="1"
+        FontSize="16"
+        FontWeight="SemiBold" />
+
+    <Border
+        Grid.Row="2"
+        Padding="14"
+        Background="{DynamicResource SystemChromeMediumLowColor}"
+        CornerRadius="6">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <TextBlock
+            x:Name="ReleaseNotesText"
+            FontSize="14"
+            TextWrapping="Wrap" />
+      </ScrollViewer>
+    </Border>
+
+    <StackPanel Grid.Row="3" Spacing="7">
+      <ProgressBar
+          x:Name="DownloadProgress"
+          Height="8"
+          IsVisible="False"
+          Maximum="100"
+          Minimum="0" />
+      <TextBlock
+          x:Name="StatusText"
+          Foreground="{DynamicResource SystemChromeGrayColor}"
+          TextWrapping="Wrap" />
+    </StackPanel>
+
+    <StackPanel
+        Grid.Row="4"
+        HorizontalAlignment="Right"
+        Orientation="Horizontal"
+        Spacing="10">
+      <Button x:Name="LaterButton" MinWidth="110" />
+      <Button x:Name="InstallButton" MinWidth="150" Classes="accent" />
+    </StackPanel>
+  </Grid>
+</Window>

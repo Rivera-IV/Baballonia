@@ -2,6 +2,7 @@
 using Baballonia.Contracts;
 using Baballonia.Desktop.Calibration;
 using Baballonia.Desktop.Captures;
+using Baballonia.Desktop.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading;
@@ -27,6 +28,13 @@ sealed class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Velopack executes fast-exit lifecycle hooks through this entry point. It must run before
+        // the mutex and every other normal-startup action. Pending updates are never applied without
+        // the user's explicit confirmation in Baballonia Next.
+        VelopackApp.Build()
+            .SetAutoApplyOnStartup(false)
+            .Run();
+
         // Give the mutex some time to think, check if another process with an identical mutex ID exists
         bool ownsMutex;
         try
@@ -46,8 +54,6 @@ sealed class Program
             return 75; // Exit code for BSD's EX_TEMPFAIL, invite the user to try again later
         }
 
-        VelopackApp.Build().Run();
-
         App.RegisterRequiredPlatformServices<
             OverlayTrainerService,
             DesktopDeviceEnumerator,
@@ -58,6 +64,7 @@ sealed class Program
         {
             collection.AddSingleton<IOverlayProgram, OverlayProgram>();
             collection.AddSingleton<ITrainerService, TrainerService>();
+            collection.AddSingleton<IAppUpdateService, VelopackUpdateService>();
             collection.AddSingleton<EyeCaptureStepFactory>();
             collection.AddSingleton<EyeCalibration>();
         });

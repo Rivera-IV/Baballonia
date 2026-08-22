@@ -66,6 +66,46 @@
         </controls:SettingsBlock.SettingsContent>
       </controls:SettingsBlock>
 
+      <controls:SettingsToggle
+          IsVisible="{x:Static utils:Utils.IsSupportedDesktopOS}"
+          Title="{x:Static assets:Resources.Settings_Updates_Header}"
+          Description="{x:Static assets:Resources.Settings_Updates_Description}"
+          IconPath="ArrowSyncRegular"
+          SettingToggled="{Binding CheckForUpdates, Mode=TwoWay}" />
+
+      <controls:SettingsToggle
+          IsVisible="{x:Static utils:Utils.IsSupportedDesktopOS}"
+          Title="{Binding PreReleaseUpdatesHeader}"
+          Description="{Binding PreReleaseUpdatesDescription}"
+          IconPath="ArrowDownloadRegular"
+          SettingToggled="{Binding ReceivePreReleaseUpdates, Mode=TwoWay}" />
+
+      <controls:SettingsBlock
+          IsVisible="{x:Static utils:Utils.IsSupportedDesktopOS}"
+          Title="{Binding UpdateNowHeader}"
+          Description="{Binding UpdateNowDescription}"
+          IconPath="ArrowSyncRegular">
+        <controls:SettingsBlock.SettingsContent>
+          <StackPanel HorizontalAlignment="Right" Spacing="6">
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+              <Button
+                  Command="{Binding OpenReleasesCommand}"
+                  Content="{Binding OpenReleasesButton}" />
+              <Button
+                  Command="{Binding CheckForUpdatesNowCommand}"
+                  Content="{Binding UpdateNowButton}" />
+            </StackPanel>
+            <TextBlock
+                MaxWidth="330"
+                HorizontalAlignment="Right"
+                Foreground="{DynamicResource SystemChromeGrayColor}"
+                Text="{Binding UpdateStatus}"
+                TextAlignment="Right"
+                TextWrapping="Wrap" />
+          </StackPanel>
+        </controls:SettingsBlock.SettingsContent>
+      </controls:SettingsBlock>
+
       <Expander
           HorizontalAlignment="Stretch"
           VerticalAlignment="Stretch"

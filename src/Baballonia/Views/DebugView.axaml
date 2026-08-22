@@ -11,6 +11,85 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <ScrollViewer>
     <StackPanel Classes="Page" Spacing="12">
+      <TextBlock Classes="Header" Margin="0,10,0,-6" Text="Eye diagnostic package" />
+
+      <Border
+          Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+          CornerRadius="8"
+          Padding="16">
+        <StackPanel Spacing="10">
+          <TextBlock
+              FontWeight="SemiBold"
+              Text="Record a short tracking problem for offline analysis"
+              TextWrapping="Wrap" />
+          <TextBlock
+              Opacity="0.75"
+              Text="Start eye tracking first. The recording runs for at most 20 seconds and stores synchronized left/right eye images, raw model output, filtered output, avatar values, calibration settings, camera transforms, and the selected personalized eye model. Nothing is uploaded automatically."
+              TextWrapping="Wrap" />
+          <Border Background="#33FF8C00" CornerRadius="6" Padding="10">
+            <TextBlock
+                Text="Privacy warning: the ZIP contains images of your eyes and your personalized eye model. Review it and send it only to someone you trust."
+                TextWrapping="Wrap" />
+          </Border>
+          <CheckBox
+              Content="I understand what the diagnostic ZIP contains"
+              IsChecked="{Binding DiagnosticConsent}" />
+          <TextBox
+              AcceptsReturn="True"
+              MinHeight="56"
+              Text="{Binding DiagnosticNotes}"
+              TextWrapping="Wrap"
+              Watermark="Describe the visible problem and what you did during the recording" />
+          <WrapPanel Orientation="Horizontal">
+            <Button
+                Command="{Binding StartEyeDiagnosticCommand}"
+                Content="Start 20-second recording"
+                Margin="0,0,8,8"
+                IsEnabled="{Binding CanStartEyeDiagnostic}" />
+            <Button
+                Command="{Binding StopEyeDiagnosticCommand}"
+                Content="Stop and create ZIP"
+                Margin="0,0,8,8"
+                IsEnabled="{Binding CanStopEyeDiagnostic}" />
+            <Button
+                Command="{Binding OpenEyeDiagnosticFolderCommand}"
+                Margin="0,0,8,8"
+                Content="Open export folder" />
+          </WrapPanel>
+          <TextBlock
+              IsVisible="{Binding IsEyeDiagnosticRecording}"
+              FontWeight="SemiBold"
+              Text="{Binding DiagnosticSecondsRemaining, StringFormat='Recording: {0} seconds remaining'}" />
+          <TextBlock Text="{Binding DiagnosticStatus}" TextWrapping="Wrap" />
+          <Border Background="#332E7DFF" CornerRadius="6" Padding="10">
+            <StackPanel Spacing="8">
+              <TextBlock
+                  FontWeight="SemiBold"
+                  Text="Optional encrypted upload"
+                  TextWrapping="Wrap" />
+              <TextBlock
+                  Text="Only after you click Upload, the ZIP is encrypted on this computer with the maintainer public key. The server stores only the encrypted .babdiag report privately in the EU and schedules deletion after 14 days. Cloudflare necessarily processes normal network metadata such as the IP address while transferring it. After local decryption, the report contains eye images and the personalized eye model."
+                  TextWrapping="Wrap" />
+              <CheckBox
+                  Content="I consent to encrypt and upload this eye-image diagnostic report"
+                  IsChecked="{Binding DiagnosticUploadConsent}" />
+              <WrapPanel Orientation="Horizontal">
+                <Button
+                    Command="{Binding UploadEyeDiagnosticCommand}"
+                    Content="Encrypt and upload report"
+                    Margin="0,0,8,8"
+                    IsEnabled="{Binding CanUploadEyeDiagnostic}" />
+                <Button
+                    Command="{Binding DeleteUploadedDiagnosticCommand}"
+                    Content="Delete uploaded report now"
+                    Margin="0,0,8,8"
+                    IsEnabled="{Binding CanDeleteUploadedDiagnostic}" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+
       <TextBlock Classes="Header" Margin="0,10,0,-6" Text="Performance metrics" />
 
       <Border

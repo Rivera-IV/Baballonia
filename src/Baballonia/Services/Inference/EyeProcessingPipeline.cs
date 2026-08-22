@@ -23,6 +23,10 @@ public class EyeProcessingPipeline(
     // value. That showed up as a pupil jump on both bilateral blinks and winks.
     private readonly EyeTemporalState _filteredTemporalState = new();
     private readonly EyeTemporalState _rawTemporalState = new();
+    private const float DefaultTemporalDeltaSeconds = 1.0f / 90.0f;
+    private const float MinimumTemporalDeltaSeconds = 1.0f / 240.0f;
+    private const float MaximumTemporalDeltaSeconds = 1.0f / 15.0f;
+    private long _lastTemporalUpdateTimestamp;
 
     public bool StabilizeEyes { get; set; } = true;
 
@@ -38,6 +42,7 @@ public class EyeProcessingPipeline(
         _imageCollector.Reset();
         _filteredTemporalState.Reset();
         _rawTemporalState.Reset();
+        _lastTemporalUpdateTimestamp = 0;
         RawEyeResult = null;
         eyeTrackingBackend.Reset();
         eyeFrameNormalizer.Reset();
@@ -117,6 +122,7 @@ public class EyeProcessingPipeline(
         metrics.EyeInferenceMs = PipelineMetrics.Ewma(metrics.EyeInferenceMs, sw.Elapsed.TotalMilliseconds);
 
         var modelRawSnapshot = diagnosticEnabled ? CloneMap(backendOutput.Value.ModelRaw) : null;
+        var temporalDeltaSeconds = NextTemporalDeltaSeconds();
 
         sw.Restart();
         // A backend filter returns its own buffer and leaves the model map untouched. Process both:
@@ -127,15 +133,23 @@ public class EyeProcessingPipeline(
         if (backendOutput.Value.FilterApplied)
         {
             var raw = backendOutput.Value.ModelRaw;
-            ProcessExpressionsCore(ref raw, _rawTemporalState);
+            // The raw pass confirms temporal eye state for diagnostics and the low-latency native
+            // result, but it must not synthesize convergence coordinates. Only the filtered pass
+            // owns the avatar convergence transition; applying it in both passes made the effective
+            // blend depend on the internal update rate and produced a delayed snap.
+            ProcessExpressionsCore(
+                ref raw,
+                _rawTemporalState,
+                convergenceRole: ConvergenceRole.DetectOnly,
+                temporalDeltaSeconds: temporalDeltaSeconds);
             rawForDfr = raw;
             if (diagnosticEnabled)
                 processedRawSnapshot = CloneMap(raw);
 
             // Closing and pupil loss must reach the filtered state machine immediately. Waiting
             // for OneEuro to catch up lets a short bilateral blink look like a wink for several
-            // frames and can make the covered pupil copy a garbage coordinate. Recovery remains
-            // filtered because Math.Min only selects the less-visible observation.
+            // frames and can make the covered pupil copy a garbage coordinate. Raw visibility is
+            // passed as a loss-only veto; filtered visibility alone confirms reacquisition.
             raw.TryGetValue("/leftPupilVisibility", out var rawLeftPupilVisibility);
             raw.TryGetValue("/rightPupilVisibility", out var rawRightPupilVisibility);
             ProcessExpressionsCore(
@@ -144,11 +158,17 @@ public class EyeProcessingPipeline(
                 raw["/leftEyeLid"],
                 raw["/rightEyeLid"],
                 raw.ContainsKey("/leftPupilVisibility") ? rawLeftPupilVisibility : null,
-                raw.ContainsKey("/rightPupilVisibility") ? rawRightPupilVisibility : null);
+                raw.ContainsKey("/rightPupilVisibility") ? rawRightPupilVisibility : null,
+                ConvergenceRole.Output,
+                temporalDeltaSeconds);
         }
         else
         {
-            ProcessExpressionsCore(ref inferenceResult, _filteredTemporalState);
+            ProcessExpressionsCore(
+                ref inferenceResult,
+                _filteredTemporalState,
+                convergenceRole: ConvergenceRole.Output,
+                temporalDeltaSeconds: temporalDeltaSeconds);
         }
 
         // A natural blink may last only a handful of camera frames, while a held wink must survive
@@ -174,6 +194,8 @@ public class EyeProcessingPipeline(
                 modelRawSnapshot!,
                 processedRawSnapshot,
                 CloneMap(inferenceResult),
+                _rawTemporalState.Snapshot,
+                _filteredTemporalState.Snapshot,
                 eyeFrameNormalizer.State,
                 geometryState));
         }
@@ -190,6 +212,28 @@ public class EyeProcessingPipeline(
         return copy;
     }
 
+    private float NextTemporalDeltaSeconds()
+    {
+        var timestamp = Stopwatch.GetTimestamp();
+        if (_lastTemporalUpdateTimestamp == 0)
+        {
+            _lastTemporalUpdateTimestamp = timestamp;
+            return DefaultTemporalDeltaSeconds;
+        }
+
+        var elapsed = (float)Stopwatch.GetElapsedTime(
+            _lastTemporalUpdateTimestamp, timestamp).TotalSeconds;
+        _lastTemporalUpdateTimestamp = timestamp;
+        return Math.Clamp(
+            elapsed, MinimumTemporalDeltaSeconds, MaximumTemporalDeltaSeconds);
+    }
+
+    private enum ConvergenceRole
+    {
+        DetectOnly,
+        Output
+    }
+
     private bool ProcessExpressions(ref OrderedFloatMap arKitExpressions)
         => ProcessExpressionsCore(ref arKitExpressions, _filteredTemporalState);
 
@@ -199,7 +243,9 @@ public class EyeProcessingPipeline(
         float? immediateLeftLid = null,
         float? immediateRightLid = null,
         float? immediateLeftPupilVisibility = null,
-        float? immediateRightPupilVisibility = null)
+        float? immediateRightPupilVisibility = null,
+        ConvergenceRole convergenceRole = ConvergenceRole.Output,
+        float temporalDeltaSeconds = DefaultTemporalDeltaSeconds)
     {
         const float mulV = 2.0f;
         const float mulY = 2.0f;
@@ -237,19 +283,9 @@ public class EyeProcessingPipeline(
         var hasRightPupilVisibility = arKitExpressions.TryGetValue(
             "/rightPupilVisibility", out var rightPupilVisibility);
         if (hasLeftPupilVisibility)
-        {
             leftPupilVisibility = Math.Clamp(leftPupilVisibility, 0.0f, 1.0f);
-            if (immediateLeftPupilVisibility.HasValue)
-                leftPupilVisibility = Math.Min(
-                    leftPupilVisibility, immediateLeftPupilVisibility.Value);
-        }
         if (hasRightPupilVisibility)
-        {
             rightPupilVisibility = Math.Clamp(rightPupilVisibility, 0.0f, 1.0f);
-            if (immediateRightPupilVisibility.HasValue)
-                rightPupilVisibility = Math.Min(
-                    rightPupilVisibility, immediateRightPupilVisibility.Value);
-        }
 
         var openWeight = leftLid + rightLid;
         // With both eyes closed the former division approached 0/0, turning harmless model noise
@@ -287,8 +323,12 @@ public class EyeProcessingPipeline(
             leftY, rightY, leftLid, rightLid,
             hasLeftPupilVisibility ? leftPupilVisibility : null,
             hasRightPupilVisibility ? rightPupilVisibility : null,
+            immediateLeftPupilVisibility,
+            immediateRightPupilVisibility,
             hasTrainedConvergence ? trainedConvergence : null,
-            StabilizeEyes);
+            StabilizeEyes,
+            convergenceRole == ConvergenceRole.Output,
+            temporalDeltaSeconds);
 
         // update the dict
         arKitExpressions["/leftEyeX"] = leftEyeXCorrected;
@@ -371,6 +411,8 @@ public class EyeProcessingPipeline(
     {
         public EyeStateResolver Resolver { get; } = new();
 
+        public EyeTemporalDiagnosticState Snapshot => Resolver.Snapshot;
+
         public void Reset() => Resolver.Reset();
     }
 
@@ -413,7 +455,9 @@ public class EyeProcessingPipeline(
         private const float ConvergenceGazeEvidenceExit = 0.16f;
         private const int ConvergenceConfirmationFrames = 6;
         private const int ConvergenceReleaseFrames = 6;
-        private const float ConvergenceStepPerFrame = 0.12f;
+        // A time-based rate keeps convergence equally smooth at 30, 90 or 120 pipeline updates per
+        // second. The former per-call step reached full strength in roughly 80 ms on the live trace.
+        private const float ConvergenceBlendRatePerSecond = 4.0f;
 
         private EyeState _state = EyeState.Open;
         private bool _initialized;
@@ -437,6 +481,21 @@ public class EyeProcessingPipeline(
         private bool _convergenceActive;
         private float _convergenceAmount;
 
+        public EyeTemporalDiagnosticState Snapshot => new(
+            _state.ToString(),
+            _initialized,
+            _leftPupilReliable,
+            _rightPupilReliable,
+            _leftPupilMissingFrames,
+            _rightPupilMissingFrames,
+            _stateFrames,
+            _stableRecoveryFrames,
+            _recoveryBlendFrame,
+            _convergenceActive,
+            _convergenceAmount,
+            _convergenceEnterFrames,
+            _convergenceExitFrames);
+
         public void Apply(
             ref float leftX,
             ref float rightX,
@@ -447,8 +506,12 @@ public class EyeProcessingPipeline(
             float rightLid,
             float? leftPupilVisibility,
             float? rightPupilVisibility,
+            float? immediateLeftPupilVisibility,
+            float? immediateRightPupilVisibility,
             float? trainedConvergence,
-            bool stabilizeEyes)
+            bool stabilizeEyes,
+            bool applyConvergenceOutput,
+            float temporalDeltaSeconds)
         {
             leftX = FiniteOr(leftX, _lastOutputLeftX);
             rightX = FiniteOr(rightX, _lastOutputRightX);
@@ -469,6 +532,8 @@ public class EyeProcessingPipeline(
 
             var wasLeftPupilReliable = _leftPupilReliable;
             var wasRightPupilReliable = _rightPupilReliable;
+            var immediateLeftPupilMissing = IsPupilMissing(immediateLeftPupilVisibility);
+            var immediateRightPupilMissing = IsPupilMissing(immediateRightPupilVisibility);
             if (leftLid <= CoveredOpenness)
             {
                 _leftPupilReliable = false;
@@ -478,6 +543,7 @@ public class EyeProcessingPipeline(
             {
                 _leftPupilReliable = UpdatePupilReliability(
                     wasLeftPupilReliable, leftPupilVisibility,
+                    immediateLeftPupilMissing,
                     ref _leftPupilMissingFrames);
             }
             if (rightLid <= CoveredOpenness)
@@ -489,18 +555,25 @@ public class EyeProcessingPipeline(
             {
                 _rightPupilReliable = UpdatePupilReliability(
                     wasRightPupilReliable, rightPupilVisibility,
+                    immediateRightPupilMissing,
                     ref _rightPupilMissingFrames);
             }
 
             // A low visibility sample is not trusted as a gaze source immediately, but it needs the
             // confirmation streak above before it is allowed to change the long-lived eye state.
-            // Reliability is intentionally slower than frame-local usability: it protects the
-            // reopening state machine from a single noisy sample. It must not, however, suppress
-            // a currently usable open-eye observation merely because the visibility head has not
-            // yet crossed its higher hysteresis threshold. The live trace otherwise produced
-            // 0.25-1.44 second gaze freezes while both lid heads remained fully open.
-            var leftPupilAvailable = !IsPupilMissing(leftPupilVisibility);
-            var rightPupilAvailable = !IsPupilMissing(rightPupilVisibility);
+            // Reliability is intentionally slower than frame-local loss detection: it protects the
+            // reopening state machine from a single noisy sample. Once a pupil has been confirmed
+            // missing, only the filtered visibility domain may cross the higher recovery threshold.
+            // Raw visibility may veto a coordinate immediately, but it may never release a
+            // OneEuro-filtered gaze coordinate. Reacquisition is confirmed solely in the filtered
+            // time domain above. Mixing raw visibility with filtered gaze caused a nearly full-range
+            // one-frame snap in live diagnostics when visibility crossed 0.03.
+            var leftPupilAvailable = _leftPupilReliable &&
+                                     !immediateLeftPupilMissing &&
+                                     !IsPupilMissing(leftPupilVisibility);
+            var rightPupilAvailable = _rightPupilReliable &&
+                                      !immediateRightPupilMissing &&
+                                      !IsPupilMissing(rightPupilVisibility);
 
             UpdateState(
                 leftX, rightX, y, leftLid, rightLid,
@@ -515,7 +588,8 @@ public class EyeProcessingPipeline(
                     ApplyOpenGaze(
                         ref leftX, ref rightX, ref y, leftY, rightY,
                         leftPupilAvailable, rightPupilAvailable,
-                        trainedConvergence, stabilizeEyes);
+                        trainedConvergence, stabilizeEyes,
+                        applyConvergenceOutput, temporalDeltaSeconds);
                     break;
 
                 case EyeState.LeftWinkCandidate:
@@ -629,6 +703,8 @@ public class EyeProcessingPipeline(
                         EnterCandidate(EyeState.RightWinkCandidate);
                     else if (leftCovered || rightCovered)
                         EnterBothClosed();
+                    else if (leftPupilRecovered && rightPupilRecovered)
+                        EnterBothPupilRecovery();
                     else if (leftPupilRecovered && rightVisible)
                         // A pupil can disappear at an extreme gaze even while the lid head remains
                         // open. Its first recognized coordinate is just as unsafe as a post-blink
@@ -741,6 +817,14 @@ public class EyeProcessingPipeline(
             _heldRightX = _lastOutputRightX;
             _heldY = _lastOutputY;
             Enter(EyeState.BothClosed);
+        }
+
+        private void EnterBothPupilRecovery()
+        {
+            _heldLeftX = _lastOutputLeftX;
+            _heldRightX = _lastOutputRightX;
+            _heldY = _lastOutputY;
+            Enter(EyeState.RecoverBoth);
         }
 
         private void EnterEyeRecovery(EyeState recoveryState, bool confirmedWink)
@@ -863,10 +947,11 @@ public class EyeProcessingPipeline(
             rightX = MoveTowards(_lastOutputRightX, desiredRightX, RecoveryStepPerFrame);
             y = MoveTowards(_lastOutputY, desiredY, RecoveryStepPerFrame);
 
-            // Do not hand control back to independent open-eye coordinates while one pupil is
-            // still only weakly visible after a real bilateral blink. Remaining in RecoverBoth is
-            // not a freeze: both coordinates continue to follow the reliable eye above.
-            if (leftPupilReliable && rightPupilReliable &&
+            // One confirmed pupil is sufficient to leave bilateral recovery: both outputs already
+            // follow that source above. Requiring both visibility heads trapped real recordings in
+            // RecoverBoth for seconds when one otherwise open eye had a weak auxiliary visibility
+            // output. The open-state fallback continues to guard the second pupil later.
+            if ((leftPupilReliable || rightPupilReliable) &&
                 _recoveryBlendFrame >= BothEyeRecoveryBlendFrames &&
                 NearlyEqual(leftX, desiredLeftX) &&
                 NearlyEqual(rightX, desiredRightX) &&
@@ -892,7 +977,9 @@ public class EyeProcessingPipeline(
             bool leftPupilReliable,
             bool rightPupilReliable,
             float? trainedConvergence,
-            bool stabilizeEyes)
+            bool stabilizeEyes,
+            bool applyConvergenceOutput,
+            float temporalDeltaSeconds)
         {
             if (!trainedConvergence.HasValue)
             {
@@ -955,7 +1042,16 @@ public class EyeProcessingPipeline(
             }
 
             _convergenceAmount = MoveTowards(
-                _convergenceAmount, target, ConvergenceStepPerFrame);
+                _convergenceAmount,
+                target,
+                ConvergenceBlendRatePerSecond * Math.Clamp(
+                    temporalDeltaSeconds,
+                    MinimumTemporalDeltaSeconds,
+                    MaximumTemporalDeltaSeconds));
+
+            if (!applyConvergenceOutput)
+                return;
+
             leftX = Lerp(leftX, 1.0f, _convergenceAmount);
             rightX = Lerp(rightX, -1.0f, _convergenceAmount);
         }
@@ -1016,6 +1112,7 @@ public class EyeProcessingPipeline(
         private static bool UpdatePupilReliability(
             bool wasReliable,
             float? visibility,
+            bool immediateMissing,
             ref int missingFrames)
         {
             if (!visibility.HasValue)
@@ -1024,7 +1121,8 @@ public class EyeProcessingPipeline(
                 return true;
             }
 
-            var missing = !float.IsFinite(visibility.Value) ||
+            var missing = immediateMissing ||
+                          !float.IsFinite(visibility.Value) ||
                           visibility.Value <= PupilMissingThreshold;
             if (wasReliable)
             {
@@ -1040,7 +1138,7 @@ public class EyeProcessingPipeline(
             }
 
             missingFrames = 0;
-            return float.IsFinite(visibility.Value) &&
+            return !immediateMissing && float.IsFinite(visibility.Value) &&
                    visibility.Value >= PupilRecoveredThreshold;
         }
 

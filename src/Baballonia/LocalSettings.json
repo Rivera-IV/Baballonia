@@ -371,5 +371,6 @@
   "AppSettings_UseGPU": true,
   "AppSettings_UseDFR": false,
   "AppSettings_CheckForUpdates": true,
+  "AppSettings_ReceivePreReleaseUpdates": true,
   "AppSettings_LogLevel": "Information"
 }

@@ -537,6 +537,75 @@
   <data name="Settings_Updates_Description" xml:space="preserve">
     <value>Should the app check for updates on start?</value>
   </data>
+  <data name="Settings_PreReleaseUpdates_Header" xml:space="preserve">
+    <value>Receive preview updates</value>
+  </data>
+  <data name="Settings_PreReleaseUpdates_Description" xml:space="preserve">
+    <value>Also offer experimental GitHub pre-releases. Recommended while Baballonia Next is in development.</value>
+  </data>
+  <data name="Settings_UpdateNow_Header" xml:space="preserve">
+    <value>Baballonia Next updates</value>
+  </data>
+  <data name="Settings_UpdateNow_Description" xml:space="preserve">
+    <value>Check your Baballonia Next release channel manually.</value>
+  </data>
+  <data name="Settings_UpdateNow_Button" xml:space="preserve">
+    <value>Check now</value>
+  </data>
+  <data name="Settings_Update_OpenReleases" xml:space="preserve">
+    <value>Open releases</value>
+  </data>
+  <data name="Settings_Update_Checking" xml:space="preserve">
+    <value>Checking for updates…</value>
+  </data>
+  <data name="Settings_Update_UpToDate" xml:space="preserve">
+    <value>Baballonia Next is up to date.</value>
+  </data>
+  <data name="Settings_Update_Available" xml:space="preserve">
+    <value>Baballonia Next {0} is available.</value>
+  </data>
+  <data name="Settings_Update_Portable" xml:space="preserve">
+    <value>Automatic updates require the installed Setup version. Portable builds can be updated from the GitHub releases page.</value>
+  </data>
+  <data name="Settings_Update_Failed" xml:space="preserve">
+    <value>Update check failed: {0}</value>
+  </data>
+  <data name="AppUpdate_WindowTitle" xml:space="preserve">
+    <value>Baballonia Next update</value>
+  </data>
+  <data name="AppUpdate_Available" xml:space="preserve">
+    <value>A new version is available</value>
+  </data>
+  <data name="AppUpdate_Version" xml:space="preserve">
+    <value>Baballonia Next {0} is ready.</value>
+  </data>
+  <data name="AppUpdate_ReleaseNotes" xml:space="preserve">
+    <value>What's new</value>
+  </data>
+  <data name="AppUpdate_NoReleaseNotes" xml:space="preserve">
+    <value>No release notes were provided for this version.</value>
+  </data>
+  <data name="AppUpdate_Later" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="AppUpdate_Install" xml:space="preserve">
+    <value>Download and install</value>
+  </data>
+  <data name="AppUpdate_ConsentNotice" xml:space="preserve">
+    <value>The update is downloaded only after you confirm. Your settings and models are kept.</value>
+  </data>
+  <data name="AppUpdate_Downloading" xml:space="preserve">
+    <value>Downloading update…</value>
+  </data>
+  <data name="AppUpdate_DownloadProgress" xml:space="preserve">
+    <value>Downloading update… {0}%</value>
+  </data>
+  <data name="AppUpdate_Restarting" xml:space="preserve">
+    <value>Download complete. Baballonia Next will restart to finish the update.</value>
+  </data>
+  <data name="AppUpdate_Failed" xml:space="preserve">
+    <value>The update failed: {0}</value>
+  </data>
   <data name="Settings_FirstTime_Header" xml:space="preserve">
     <value>Launch first time setup</value>
   </data>

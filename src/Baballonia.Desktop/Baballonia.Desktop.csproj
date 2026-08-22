@@ -8,11 +8,11 @@
         <ApplicationIcon>Assets\IconOpaque.ico</ApplicationIcon>
         <Company>Paradigm Reality Enhancement Labs</Company>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <AssemblyVersion>1.1.1.1</AssemblyVersion>
-        <FileVersion>1.1.1.1</FileVersion>
-        <Version>1.1.1.1-expressions.preview.1</Version>
-        <Product>Baballonia Expressions Preview</Product>
-        <AssemblyTitle>Baballonia Expressions Preview</AssemblyTitle>
+        <AssemblyVersion>0.1.0.0</AssemblyVersion>
+        <FileVersion>0.1.0.0</FileVersion>
+        <Version>0.1.0</Version>
+        <Product>Baballonia Next</Product>
+        <AssemblyTitle>Baballonia Next</AssemblyTitle>
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
 
@@ -28,7 +28,7 @@
         <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
         <!-- Override Avalonia's transitive Tmds.DBus.Protocol 0.21.2 (GHSA-xrw6-gwf8-vvr9). 0.21.3 is the backported fix. -->
         <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
-        <PackageReference Include="Velopack" Version="0.0.1298" />
+        <PackageReference Include="Velopack" Version="1.2.0" />
 
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.12" />
@@ -164,6 +164,7 @@
             <ModuleDlls Condition="Exists('$(OutputPath)Baballonia.IPCameraCapture.pdb')" Include="$(OutputPath)Baballonia.IPCameraCapture.pdb" />
             <ModuleDlls Condition="Exists('$(OutputPath)Baballonia.VFTCapture.pdb')" Include="$(OutputPath)Baballonia.VFTCapture.pdb" />
         </ItemGroup>
+        <RemoveDir Directories="$(OutputPath)Modules" Condition="Exists('$(OutputPath)Modules')" />
         <Move SourceFiles="@(ModuleDlls)" DestinationFolder="$(OutputPath)Modules\" />
     </Target>
     <!-- Keep capture plugins in a separate folder. Use PublishDir instead of the default
@@ -181,6 +182,7 @@
             <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.LibV4L2Capture.dll')" Include="$(PublishDir)Baballonia.LibV4L2Capture.dll" />
             <PublishModuleFiles Condition="Exists('$(PublishDir)Baballonia.LibV4L2Capture.pdb')" Include="$(PublishDir)Baballonia.LibV4L2Capture.pdb" />
         </ItemGroup>
+        <RemoveDir Directories="$(PublishDir)Modules" Condition="Exists('$(PublishDir)Modules')" />
         <Move SourceFiles="@(PublishModuleFiles)" DestinationFolder="$(PublishDir)Modules\" />
     </Target>
 

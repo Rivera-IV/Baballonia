@@ -8,7 +8,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -18,6 +22,12 @@ using System.Threading.Tasks;
 namespace Baballonia.Services;
 
 public sealed record EyeDiagnosticRecordingResult(string DirectoryPath, int SampleCount);
+
+public sealed record EyeDiagnosticPackageResult(
+    string ZipPath,
+    string DirectoryPath,
+    int SampleCount,
+    bool IncludedEyeModel);
 
 /// <summary>
 /// Creates a local-only, synchronized record of what the eye model actually saw and produced.
@@ -40,13 +50,24 @@ public sealed class EyeDiagnosticRecorder(
     private double _lastCaptureMs = double.NegativeInfinity;
     private int _sequence;
     private bool _recording;
+    private RecordingKind _recordingKind;
+    private string? _activeModelPath;
+    private DateTime _recordingStartedLocal;
+    private readonly SemaphoreSlim _recordingPruneGate = new(1, 1);
 
     public bool IsRecording
     {
         get { lock (_sync) return _recording; }
     }
 
-    public string StartCalibrationRecording()
+    public bool IsLiveRecording
+    {
+        get { lock (_sync) return _recording && _recordingKind == RecordingKind.Live; }
+    }
+
+    public string StartCalibrationRecording() => StartRecording(RecordingKind.Calibration);
+
+    private string StartRecording(RecordingKind recordingKind)
     {
         string sessionDirectory;
         lock (_sync)
@@ -57,21 +78,31 @@ public sealed class EyeDiagnosticRecorder(
             var diagnosticsRoot = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "ProjectBabble", "Diagnostics");
-            // Keep four previous recordings; this recording becomes the fifth retained entry.
-            PruneOldRecordings(diagnosticsRoot, keepNewest: 4);
             sessionDirectory = Path.Combine(diagnosticsRoot, $"eye_{DateTime.Now:yyyyMMdd_HHmmss}");
             Directory.CreateDirectory(Path.Combine(sessionDirectory, "frames"));
+            _activeModelPath = ResolveActiveEyeModelPath();
+            _recordingStartedLocal = DateTime.Now;
             File.WriteAllText(Path.Combine(sessionDirectory, "metadata.json"),
                 JsonSerializer.Serialize(new
                 {
-                    createdLocal = DateTime.Now,
-                    eyeModel = localSettingsService.ReadSetting<string>(
-                        "EyeHome_EyeModel", "eyeModel.onnx"),
+                    schemaVersion = 2,
+                    createdLocal = _recordingStartedLocal,
+                    recordingKind = recordingKind.ToString().ToLowerInvariant(),
+                    applicationVersion = GetApplicationVersion(),
+                    operatingSystem = RuntimeInformation.OSDescription,
+                    processArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
+                    eyeModelFileName = Path.GetFileName(_activeModelPath),
                     oneEuroEnabled = localSettingsService.ReadSetting<bool>("AppSettings_OneEuroEnabled"),
                     oneEuroMinCutoff = localSettingsService.ReadSetting<float>("AppSettings_OneEuroMinFreqCutoff"),
                     oneEuroBeta = localSettingsService.ReadSetting<float>("AppSettings_OneEuroSpeedCutoff"),
                     stabilizeEyes = localSettingsService.ReadSetting<bool>("AppSettings_StabilizeEyes", true),
                     swapSplitEyes = localSettingsService.ReadSetting<bool>("AppSettings_SplitEyeVideoSwap", false),
+                    eyeWidenGain = localSettingsService.ReadSetting<float>("AppSettings_EyeWidenGain", 1.0f),
+                    eyeSquintGain = localSettingsService.ReadSetting<float>("AppSettings_EyeSquintGain", 1.0f),
+                    eyeBrowGain = localSettingsService.ReadSetting<float>("AppSettings_EyeBrowGain", 1.0f),
+                    leftCameraTransform = localSettingsService.ReadSetting<object?>("LeftCamera"),
+                    rightCameraTransform = localSettingsService.ReadSetting<object?>("RightCamera"),
+                    calibration = CaptureEyeCalibration(),
                 }, new JsonSerializerOptions { WriteIndented = true }));
 
             _sessionDirectory = sessionDirectory;
@@ -88,6 +119,7 @@ public sealed class EyeDiagnosticRecorder(
                 FullMode = BoundedChannelFullMode.Wait,
             });
             _writerTask = WriteSamplesAsync(_channel.Reader, sessionDirectory);
+            _recordingKind = recordingKind;
             _recording = true;
             eyePipelineEventBus.Subscribe<EyePipelineEvents.DiagnosticFrameEvent>(OnDiagnosticFrame);
         }
@@ -122,7 +154,7 @@ public sealed class EyeDiagnosticRecorder(
 
     public string StartLiveRecording()
     {
-        var directory = StartCalibrationRecording();
+        var directory = StartRecording(RecordingKind.Live);
         SetCalibrationPhase("live", captureEnabled: true);
         return directory;
     }
@@ -164,11 +196,16 @@ public sealed class EyeDiagnosticRecorder(
         {
             if (!_recording || !_captureEnabled || _channel == null || _clock == null) return;
             var elapsedMs = _clock.Elapsed.TotalMilliseconds;
-            // Live diagnostics are used specifically for short events such as natural blinks.
-            // Sampling them at 10 Hz can miss the closing frame that causes a visible pupil jump,
-            // so retain every inference frame just like the guided blink/wink phases.
-            var fullRate = _phase is "live" or "blink" or "winkleft" or "winkright";
-            if (!fullRate && elapsedMs - _lastCaptureMs < 100.0) return;
+            // Thirty samples per second preserve several frames of a natural blink without making
+            // live diagnostics compete with tracking for CPU and disk bandwidth. Guided blink and
+            // wink calibration phases still retain every inference frame for training quality.
+            var minimumIntervalMs = _phase switch
+            {
+                "live" => 1000.0 / 30.0,
+                "blink" or "winkleft" or "winkright" => 0.0,
+                _ => 100.0,
+            };
+            if (elapsedMs - _lastCaptureMs < minimumIntervalMs) return;
             _lastCaptureMs = elapsedMs;
             channel = _channel;
             clock = _clock;
@@ -205,6 +242,8 @@ public sealed class EyeDiagnosticRecorder(
                 frame.ProcessedRaw.ToArray(),
                 frame.ProcessedFiltered.ToArray(),
                 avatar,
+                frame.RawTemporalState,
+                frame.FilteredTemporalState,
                 frame.Normalization,
                 frame.Geometry)))
         {
@@ -257,6 +296,16 @@ public sealed class EyeDiagnosticRecorder(
                         "measured_right_pitch", "measured_right_yaw",
                         "expected_left_lid", "expected_right_lid", "expected_widen",
                         "expected_squint", "expected_brow",
+                        "raw_state", "raw_left_pupil_reliable", "raw_right_pupil_reliable",
+                        "raw_left_pupil_missing_frames", "raw_right_pupil_missing_frames",
+                        "raw_state_frames", "raw_recovery_frames", "raw_recovery_blend_frame",
+                        "raw_convergence_active", "raw_convergence_amount",
+                        "raw_convergence_enter_frames", "raw_convergence_exit_frames",
+                        "filtered_state", "filtered_left_pupil_reliable", "filtered_right_pupil_reliable",
+                        "filtered_left_pupil_missing_frames", "filtered_right_pupil_missing_frames",
+                        "filtered_state_frames", "filtered_recovery_frames", "filtered_recovery_blend_frame",
+                        "filtered_convergence_active", "filtered_convergence_amount",
+                        "filtered_convergence_enter_frames", "filtered_convergence_exit_frames",
                         "registration_left_tx", "registration_left_ty",
                         "registration_left_rotation", "registration_left_confidence",
                         "registration_right_tx", "registration_right_ty",
@@ -309,6 +358,10 @@ public sealed class EyeDiagnosticRecorder(
                     FormatNullable(sample.Expected.Widen),
                     FormatNullable(sample.Expected.Squint),
                     FormatNullable(sample.Expected.Brow),
+                };
+                AddTemporalStateValues(values, sample.RawTemporalState);
+                AddTemporalStateValues(values, sample.FilteredTemporalState);
+                values.AddRange([
                     FormatRegistration(sample.Normalization.Left.TranslationX),
                     FormatRegistration(sample.Normalization.Left.TranslationY),
                     FormatRegistration(sample.Normalization.Left.RotationDegrees),
@@ -317,7 +370,7 @@ public sealed class EyeDiagnosticRecorder(
                     FormatRegistration(sample.Normalization.Right.TranslationY),
                     FormatRegistration(sample.Normalization.Right.RotationDegrees),
                     FormatRegistration(sample.Normalization.Right.Confidence),
-                };
+                ]);
                 AddGeometryValues(values, sample.Geometry, sample.Target, sample.ModelRaw);
                 values.AddRange(sample.ModelRaw.Select(v => v.Value.ToString("R", CultureInfo.InvariantCulture)));
                 values.AddRange(sample.ProcessedRaw.Select(v => v.Value.ToString("R", CultureInfo.InvariantCulture)));
@@ -353,7 +406,8 @@ public sealed class EyeDiagnosticRecorder(
             "Local Baballonia eye diagnostic. Each CSV row references separate transformed " +
             "left/right grayscale model-input PNGs. Columns contain raw ONNX outputs, " +
             "unfiltered post-processing, filtered post-processing, calibrated avatar output, " +
-            "the active calibration phase, expected expression labels, and the latest VR target. " +
+            "the raw/filtered temporal eye state, active calibration phase, expected expression " +
+            "labels, and the latest VR target. " +
             "Registration columns are monitor-only camera-to-eye movement estimates in model-input " +
             "pixels. Geometry columns contain experimental pupil observations and mathematical gaze " +
             "angles. Both systems are shadow-only and do not alter tracking in this build. " +
@@ -366,6 +420,23 @@ public sealed class EyeDiagnosticRecorder(
 
     private static string FormatRegistration(float value) =>
         value.ToString("R", CultureInfo.InvariantCulture);
+
+    private static void AddTemporalStateValues(
+        ICollection<string> values, EyeTemporalDiagnosticState state)
+    {
+        values.Add(EscapeCsv(state.State));
+        values.Add(state.LeftPupilReliable ? "1" : "0");
+        values.Add(state.RightPupilReliable ? "1" : "0");
+        values.Add(state.LeftPupilMissingFrames.ToString(CultureInfo.InvariantCulture));
+        values.Add(state.RightPupilMissingFrames.ToString(CultureInfo.InvariantCulture));
+        values.Add(state.StateFrames.ToString(CultureInfo.InvariantCulture));
+        values.Add(state.StableRecoveryFrames.ToString(CultureInfo.InvariantCulture));
+        values.Add(state.RecoveryBlendFrame.ToString(CultureInfo.InvariantCulture));
+        values.Add(state.ConvergenceActive ? "1" : "0");
+        values.Add(state.ConvergenceAmount.ToString("R", CultureInfo.InvariantCulture));
+        values.Add(state.ConvergenceEnterFrames.ToString(CultureInfo.InvariantCulture));
+        values.Add(state.ConvergenceExitFrames.ToString(CultureInfo.InvariantCulture));
+    }
 
     private static void AddGeometryValues(
         ICollection<string> values,
@@ -454,6 +525,51 @@ public sealed class EyeDiagnosticRecorder(
             ? $"\"{value.Replace("\"", "\"\"")}\""
             : value;
 
+    private Dictionary<string, object> CaptureEyeCalibration()
+    {
+        string[] names =
+        [
+            "/leftEyeX", "/leftEyeY", "/rightEyeX", "/rightEyeY",
+            "/leftEyeLid", "/rightEyeLid",
+            "/leftEyeWiden", "/rightEyeWiden",
+            "/leftEyeSquint", "/rightEyeSquint",
+            "/leftEyeBrow", "/rightEyeBrow",
+            "/eyeConvergence"
+        ];
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var name in names)
+        {
+            var setting = calibrationService.GetExpressionSettings(name);
+            result[name] = new
+            {
+                setting.Lower,
+                setting.Upper,
+                setting.Min,
+                setting.Max,
+            };
+        }
+        return result;
+    }
+
+    private string ResolveActiveEyeModelPath()
+    {
+        const string defaultEyeModelName = "eyeModel.onnx";
+        var configured = localSettingsService.ReadSetting<string>(
+            "EyeHome_EyeModel", defaultEyeModelName);
+        var configuredPath = Path.IsPathRooted(configured)
+            ? configured
+            : Path.Combine(AppContext.BaseDirectory, configured);
+        return File.Exists(configuredPath)
+            ? configuredPath
+            : Path.Combine(AppContext.BaseDirectory, defaultEyeModelName);
+    }
+
+    private static string GetApplicationVersion() =>
+        typeof(EyeDiagnosticRecorder).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion ??
+        typeof(EyeDiagnosticRecorder).Assembly.GetName().Version?.ToString() ?? "unknown";
+
     public async Task<EyeDiagnosticRecordingResult?> StopAsync()
     {
         Task? writerTask;
@@ -473,7 +589,195 @@ public sealed class EyeDiagnosticRecorder(
 
         if (writerTask != null)
             await writerTask;
+        if (directory != null)
+        {
+            try
+            {
+                sampleCount = Directory.EnumerateFiles(
+                    Path.Combine(directory, "frames"), "left_*.png").Count();
+            }
+            catch (IOException)
+            {
+                // Keep the attempted-frame count if the directory cannot be enumerated.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Keep the attempted-frame count if permissions changed during finalization.
+            }
+        }
+        QueueOldRecordingPrune();
         return directory == null ? null : new EyeDiagnosticRecordingResult(directory, sampleCount);
+    }
+
+    private void QueueOldRecordingPrune()
+    {
+        _ = Task.Run(async () =>
+        {
+            // Let packaging or training begin without competing with a potentially large recursive
+            // delete. If another recording starts meanwhile, its own stop will schedule a retry.
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            if (IsRecording)
+                return;
+
+            await _recordingPruneGate.WaitAsync();
+            try
+            {
+                if (IsRecording)
+                    return;
+
+                var diagnosticsRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "ProjectBabble", "Diagnostics");
+                PruneOldRecordings(diagnosticsRoot, keepNewest: 5);
+            }
+            catch (IOException)
+            {
+                // Retention is optional and can be retried after the next recording.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // A protected diagnostic folder must never interrupt tracking or the UI.
+            }
+            finally
+            {
+                _recordingPruneGate.Release();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Finishes a user-started live recording and creates a local ZIP that can be sent manually.
+    /// The selected personalized eye model is included so the recorded frames can be replayed
+    /// against the exact network that produced the CSV values. No upload is performed.
+    /// </summary>
+    public async Task<EyeDiagnosticPackageResult?> StopLiveAndCreatePackageAsync(string? notes)
+    {
+        string? activeModelPath;
+        DateTime startedLocal;
+        lock (_sync)
+        {
+            if (!_recording || _recordingKind != RecordingKind.Live)
+                return null;
+            activeModelPath = _activeModelPath;
+            startedLocal = _recordingStartedLocal;
+        }
+
+        var recording = await StopAsync();
+        if (recording == null)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(notes))
+            await File.WriteAllTextAsync(
+                Path.Combine(recording.DirectoryPath, "tester_notes.txt"),
+                notes.Trim(), new UTF8Encoding(false));
+
+        var includedModel = false;
+        string? modelHash = null;
+        long? modelSize = null;
+        string? modelCopyError = null;
+        if (!string.IsNullOrWhiteSpace(activeModelPath) && File.Exists(activeModelPath))
+        {
+            try
+            {
+                var modelDirectory = Path.Combine(recording.DirectoryPath, "model");
+                Directory.CreateDirectory(modelDirectory);
+                var packagedModelPath = Path.Combine(modelDirectory, "eye-model.onnx");
+                await CopyReadableFileAsync(activeModelPath, packagedModelPath);
+                await using var modelStream = new FileStream(
+                    packagedModelPath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                    bufferSize: 81920, useAsync: true);
+                modelHash = Convert.ToHexString(await SHA256.HashDataAsync(modelStream));
+                modelSize = modelStream.Length;
+                includedModel = true;
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException)
+            {
+                // The frame/output trace remains useful even if antivirus or another process has
+                // temporarily locked the ONNX file. Keep paths private; record only the error type.
+                modelCopyError = exception.GetType().Name;
+            }
+        }
+        else
+        {
+            modelCopyError = "ModelFileNotFound";
+        }
+
+        await File.WriteAllTextAsync(
+            Path.Combine(recording.DirectoryPath, "package_manifest.json"),
+            JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                createdLocal = DateTime.Now,
+                recordingStartedLocal = startedLocal,
+                applicationVersion = GetApplicationVersion(),
+                sampleCount = recording.SampleCount,
+                includesEyeImages = true,
+                includesRawAndProcessedModelOutputs = true,
+                includesPersonalizedEyeModel = includedModel,
+                eyeModelFile = includedModel ? "model/eye-model.onnx" : null,
+                eyeModelSha256 = modelHash,
+                eyeModelBytes = modelSize,
+                eyeModelCopyError = modelCopyError,
+                automaticUpload = false,
+            }, new JsonSerializerOptions { WriteIndented = true }),
+            new UTF8Encoding(false));
+
+        var exportRoot = Path.Combine(Utils.UserAccessibleDataDirectory, "Diagnostics");
+        Directory.CreateDirectory(exportRoot);
+        PruneOldPackages(exportRoot, keepNewest: 4);
+        var zipPath = UniquePackagePath(exportRoot, startedLocal);
+        await Task.Run(() => ZipFile.CreateFromDirectory(
+            recording.DirectoryPath,
+            zipPath,
+            CompressionLevel.Fastest,
+            includeBaseDirectory: false));
+
+        return new EyeDiagnosticPackageResult(
+            zipPath, recording.DirectoryPath, recording.SampleCount, includedModel);
+    }
+
+    private static async Task CopyReadableFileAsync(string sourcePath, string destinationPath)
+    {
+        await using var source = new FileStream(
+            sourcePath, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: 81920, useAsync: true);
+        await using var destination = new FileStream(
+            destinationPath, FileMode.Create, FileAccess.Write,
+            FileShare.None, bufferSize: 81920, useAsync: true);
+        await source.CopyToAsync(destination);
+    }
+
+    private static string UniquePackagePath(string exportRoot, DateTime startedLocal)
+    {
+        var stem = $"Baballonia-Eye-Diagnostic-{startedLocal:yyyyMMdd-HHmmss}";
+        var path = Path.Combine(exportRoot, stem + ".zip");
+        for (var suffix = 2; File.Exists(path); suffix++)
+            path = Path.Combine(exportRoot, $"{stem}-{suffix}.zip");
+        return path;
+    }
+
+    private static void PruneOldPackages(string exportRoot, int keepNewest)
+    {
+        foreach (var file in new DirectoryInfo(exportRoot)
+                     .EnumerateFiles("Baballonia-Eye-Diagnostic-*.zip")
+                     .OrderByDescending(item => item.CreationTimeUtc)
+                     .Skip(keepNewest))
+        {
+            try
+            {
+                file.Delete();
+            }
+            catch (IOException)
+            {
+                // An open package can be pruned the next time a recording is exported.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Diagnostics must never interfere with tracking.
+            }
+        }
     }
 
     public void Dispose()
@@ -499,6 +803,8 @@ public sealed class EyeDiagnosticRecorder(
         KeyValuePair<string, float>[] ProcessedRaw,
         KeyValuePair<string, float>[] Filtered,
         KeyValuePair<string, float>[] Avatar,
+        EyeTemporalDiagnosticState RawTemporalState,
+        EyeTemporalDiagnosticState FilteredTemporalState,
         EyeFrameNormalizationState Normalization,
         EyeGeometryTrackingState Geometry);
 
@@ -512,6 +818,12 @@ public sealed class EyeDiagnosticRecorder(
         float? RightEyeYaw)
     {
         public static CalibrationTarget Empty => new(null, null, null, null, null, null, null);
+    }
+
+    private enum RecordingKind
+    {
+        Calibration,
+        Live,
     }
 
     private readonly record struct ExpectedExpressions(

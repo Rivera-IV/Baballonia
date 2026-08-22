@@ -24,6 +24,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -124,6 +125,21 @@ public partial class App : Application
             services.AddSingleton<EyePipelineManager>();
             services.AddSingleton<IEyePipelineEventBus, EyePipelineEventBus>();
             services.AddSingleton<EyeDiagnosticRecorder>();
+            services.AddSingleton<DiagnosticPackageEncryptor>();
+            services.AddHttpClient<DiagnosticReportUploadService>(client =>
+            {
+                const string productionEndpoint =
+                    "https://baballonia-diagnostic-upload.a-rietz.workers.dev/";
+                var configuredEndpoint =
+                    Environment.GetEnvironmentVariable("BABALLONIA_DIAGNOSTIC_UPLOAD_URL");
+                client.BaseAddress = Uri.TryCreate(configuredEndpoint, UriKind.Absolute, out var endpoint) &&
+                                     endpoint.Scheme == Uri.UriSchemeHttps
+                    ? endpoint
+                    : new Uri(productionEndpoint);
+                client.Timeout = TimeSpan.FromMinutes(5);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                    "Baballonia-Next-Diagnostics/0.1.0");
+            });
             services.AddSingleton<SingleCameraSourceFactory>();
             services.AddSingleton<FirmwareSessionFactory>();
 
@@ -247,7 +263,7 @@ public partial class App : Application
         Assembly assembly = Assembly.GetExecutingAssembly();
         Version version = assembly.GetName().Version!;
         var logger = Ioc.Default.GetService<ILogger<MainWindow>>();
-        logger?.LogInformation($"Baballonia version {version} starting...");
+        logger?.LogInformation($"Baballonia Next version {version} starting...");
 
         Task.Run(async () => await _host.StartAsync());
 
@@ -273,7 +289,11 @@ public partial class App : Application
                         desktop.Shutdown();
                     }
                 };
-                desktop.MainWindow.Loaded += (_, _) => { desktop.MainWindow.ShowOnboardingIfNeeded(); };
+                desktop.MainWindow.Loaded += (_, _) =>
+                {
+                    desktop.MainWindow.ShowOnboardingIfNeeded();
+                    _ = CheckForUpdatesOnStartupAsync(desktop.MainWindow);
+                };
                 desktop.Exit += (s, e) =>
                 {
                     OnShutdown(s, e); // flushes settings synchronously (ForceSave) + teardown
@@ -308,6 +328,55 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static async Task CheckForUpdatesOnStartupAsync(Avalonia.Controls.Window mainWindow)
+    {
+        const string lastCheckSetting = "AppUpdates_LastAutomaticCheckUtc";
+        var settings = Ioc.Default.GetService<ILocalSettingsService>();
+        var updateService = Ioc.Default.GetService<IAppUpdateService>();
+        var logger = Ioc.Default.GetService<ILogger<App>>();
+        if (settings is null || updateService is null ||
+            !settings.ReadSetting("AppSettings_CheckForUpdates", true))
+        {
+            return;
+        }
+
+        var lastCheckText = settings.ReadSetting(lastCheckSetting, "");
+        if (DateTimeOffset.TryParse(
+                lastCheckText,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind,
+                out var lastCheck) &&
+            DateTimeOffset.UtcNow - lastCheck < TimeSpan.FromHours(24))
+        {
+            return;
+        }
+
+        // Record the attempt before doing network I/O so an unreachable endpoint cannot delay every
+        // application start. A manual check remains available in Settings at all times.
+        settings.SaveSetting(lastCheckSetting, DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+
+        try
+        {
+            var includePrereleases = settings.ReadSetting(
+                "AppSettings_ReceivePreReleaseUpdates",
+                true);
+            var result = await updateService.CheckForUpdatesAsync(includePrereleases);
+            if (result.State != AppUpdateCheckState.UpdateAvailable || !mainWindow.IsVisible)
+                return;
+
+            // Do not place the update prompt on top of onboarding or another owned dialog.
+            while (mainWindow.IsVisible && mainWindow.OwnedWindows.Any(window => window.IsVisible))
+                await Task.Delay(250);
+
+            if (mainWindow.IsVisible)
+                await UpdateDialog.ShowAsync(mainWindow, updateService, result);
+        }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(exception, "Automatic update check failed");
+        }
     }
 
     private void OnShutdown(object? sender, EventArgs e)

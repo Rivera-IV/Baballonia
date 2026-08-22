@@ -8,20 +8,24 @@
 ;--------------------------------
 ;Custom defines
 
-  !define NAME "Baballonia Expressions Preview"
+  !define NAME "Baballonia Next"
   !define APPFILE "Baballonia.Desktop.exe"
-  !define PUBLISHER "Baballonia Expressions Preview Contributors"
-  !define FILE_VERSION "1.1.1.1"
-  !define VERSION "1.1.1.1-expressions.preview.1"
+  !define PUBLISHER "Baballonia Next Contributors"
+  !define FILE_VERSION "0.1.0.0"
+  !define VERSION "0.1.0"
   !ifdef WORKFLOW_VERSION ; override version string with one provided through GitHub Actions.
     !undef VERSION
     !define VERSION "${WORKFLOW_VERSION}"
+  !endif
+  !ifdef WORKFLOW_FILE_VERSION ; Windows resources require a numeric four-part version.
+    !undef FILE_VERSION
+    !define FILE_VERSION "${WORKFLOW_FILE_VERSION}"
   !endif
   !ifndef PUBLISH_DIR
     !define PUBLISH_DIR "bin\Release\net10.0\win-x64\publish"
   !endif
   !ifndef OUTPUT_FILE
-    !define OUTPUT_FILE "Baballonia-Expressions-Preview-1-Setup-x64.exe"
+    !define OUTPUT_FILE "Baballonia-Next-${VERSION}-Setup-x64.exe"
   !endif
   !define SLUG "${NAME} v${VERSION}"
 
@@ -41,8 +45,8 @@
   VIAddVersionKey "FileVersion" "${FILE_VERSION}"
   VIAddVersionKey "FileDescription" "${NAME} Setup"
   VIAddVersionKey "CompanyName" "${PUBLISHER}"
-  VIAddVersionKey "LegalCopyright" "Project Babble and Baballonia Expressions Preview contributors"
-  VIAddVersionKey "OriginalFilename" "Baballonia-Expressions-Preview-1-Setup-x64.exe"
+  VIAddVersionKey "LegalCopyright" "Project Babble and Baballonia Next contributors"
+  VIAddVersionKey "OriginalFilename" "Baballonia-Next-${VERSION}-Setup-x64.exe"
 
 ;--------------------------------
 ;Compression

@@ -5,6 +5,21 @@ using Baballonia.Contracts;
 
 namespace Baballonia.Services.events;
 
+public readonly record struct EyeTemporalDiagnosticState(
+    string State,
+    bool Initialized,
+    bool LeftPupilReliable,
+    bool RightPupilReliable,
+    int LeftPupilMissingFrames,
+    int RightPupilMissingFrames,
+    int StateFrames,
+    int StableRecoveryFrames,
+    int RecoveryBlendFrame,
+    bool ConvergenceActive,
+    float ConvergenceAmount,
+    int ConvergenceEnterFrames,
+    int ConvergenceExitFrames);
+
 public class FacePipelineEvents
 {
     public readonly record struct NewFrameEvent(Mat image);
@@ -43,6 +58,8 @@ public class EyePipelineEvents
         OrderedFloatMap ModelRaw,
         OrderedFloatMap ProcessedRaw,
         OrderedFloatMap ProcessedFiltered,
+        EyeTemporalDiagnosticState RawTemporalState,
+        EyeTemporalDiagnosticState FilteredTemporalState,
         EyeFrameNormalizationState Normalization,
         EyeGeometryTrackingState Geometry);
 

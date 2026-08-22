@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "baballonia-diagnostic-upload",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "r2_buckets": [
+    {
+      "binding": "REPORTS",
+      "bucket_name": "baballonia-diagnostic-reports-eu",
+      "jurisdiction": "eu"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "REQUEST_RATE_LIMITER",
+      "namespace_id": "26082201",
+      "simple": {
+        "limit": 3,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "MAX_UPLOAD_BYTES": "78643200",
+    "RETENTION_DAYS": "14"
+  },
+  "observability": {
+    "enabled": false
+  }
+}

@@ -1,6 +1,6 @@
-# Baballonia Expressions Preview
+# Baballonia Next
 
-Baballonia Expressions Preview is an unofficial experimental build focused on personalized eye
+Baballonia Next is an unofficial development line focused on personalized eye
 tracking, eye-expression calibration, and runtime stability. It remains based on Project Babble's
 Baballonia and is not an official Project Babble release.
 
@@ -12,7 +12,7 @@ from causing long gaze holds, and makes full-rate eye recording developer-only.
 
 ## Comparison baseline
 
-This preview directly extends Project Babble's optimized Expressions Alpha development line:
+Baballonia Next directly extends Project Babble's optimized Expressions Alpha development line:
 
 - technical base: Expressions Alpha `1.1.1.1-3`
 - upstream branch: `expr-opt`
@@ -25,9 +25,9 @@ when this summary was prepared was:
 - official release commit: `7339b07`
 - comparison reviewed: 2026-08-19
 
-The list below describes user-visible behavior in the preview rather than attributing every source
-commit. The preview identifier is intentionally separate from Project Babble's numbered Alpha
-builds and does not imply an official `1.1.1.1-4` release.
+The list below describes user-visible behavior in Baballonia Next rather than attributing every
+source commit. Its independent Semantic Versioning sequence does not imply another official
+Project Babble `1.1.1.1` Alpha release.
 
 ## Eye calibration
 
@@ -75,9 +75,15 @@ builds and does not imply an official `1.1.1.1-4` release.
   periodically stall the inference thread.
 - Rejects reference frames with missing pupils, closed lids, unsuitable brightness, or implausible
   model output instead of calibrating against uncertain images.
-- Keeps a developer-only full-rate local eye diagnostic recorder with synchronized input images,
-  raw model output, post-processed values, and state information. It is enabled only through the
-  `BABALLONIA_LIVE_EYE_DIAGNOSTIC=1` environment variable and is not exposed to normal users.
+- Adds an explicitly consented, 20-second local eye diagnostic export on the opt-in Debug page.
+  The ZIP contains synchronized input images, raw model output, post-processed/avatar values,
+  temporal state, camera-registration data, calibration/camera settings, and the selected eye
+  model so a tester's exact problem can be replayed offline. Nothing is uploaded automatically.
+- Provides a separate, second consent action that encrypts a chosen report locally with a fresh
+  AES-256-GCM key, wraps that key with the maintainer's RSA public key, and uploads only the
+  encrypted container to a private EU-jurisdiction store. Reports are scheduled for deletion after
+  14 days and receive a one-time token for earlier deletion.
+- Keeps the `BABALLONIA_LIVE_EYE_DIAGNOSTIC=1` environment-variable path for developer sessions.
 - Adds an opt-in Debug/Performance page with camera and processing metrics.
 
 ## Capture, reliability, and performance
@@ -95,21 +101,28 @@ builds and does not imply an official `1.1.1.1-4` release.
 
 - Removes the calibration-data uploader and its embedded server credentials.
 - Removes the eye/face data-sharing prompt, setting, machine identifier, and AWS S3 dependency.
-- Eye diagnostics are stored locally only and are never uploaded automatically.
+- Eye diagnostics remain local unless the tester separately consents to encrypt and upload a
+  completed report. The server has no diagnostic private key or public download route, and uploads
+  are never automatic.
 - Network features required for selected IP cameras, OSC/OSCQuery, update checks, and explicit
   firmware/module downloads remain separate from calibration-data collection.
 
 ## Packaging and version
 
-- product name: `Baballonia Expressions Preview`
+- product name: `Baballonia Next`
 - upstream technical base: `1.1.1.1-3`
-- preview version: `1.1.1.1-expressions.preview.1`
-- release tag: `v1.1.1.1-expressions.preview.1`
-- release branch: `release/expressions-preview`
-- Windows installer: `Baballonia-Expressions-Preview-1-Setup-x64.exe`
-- portable archive: `Baballonia-Expressions-Preview-1-Portable-x64.zip`
-- removes the old in-app Alpha warning banner; the preview status remains explicit in the product
-  name, version, installer, and release page
+- application version: `0.1.0`
+- release tag: `v0.1.0`
+- release branch: `release/baballonia-next`
+- Windows installer: `Baballonia-Next-0.1.0-Setup-x64.exe`
+- portable archive: `Baballonia-Next-0.1.0-Portable-win-x64.zip`
+- installed builds can check the fork's GitHub releases for updates; downloading and restarting
+  always requires explicit confirmation from the user
+- Windows releases are packaged with Velopack and include the installer, portable archive,
+  full update package, and `win-x64` update feed required by the in-app updater
+- release versions follow Semantic Versioning (`MAJOR.MINOR.PATCH`), beginning at `0.1.0`
+- removes the old in-app Alpha warning banner; development status remains explicit in the `0.x`
+  version sequence and release page
 
 The installer uses a distinct product/install name so it does not replace the official Baballonia
 installation entry. Application settings and personalized models are currently shared with
@@ -117,17 +130,20 @@ Baballonia through the existing ProjectBabble user-data directories.
 
 ## Download verification
 
-These Windows artifacts are currently unsigned. Windows or antivirus software may therefore show
-a reputation warning.
+The release is currently unsigned, so Windows or antivirus software may show a reputation warning.
 
-- `Baballonia-Expressions-Preview-1-Setup-x64.exe` — SHA-256:
-  `1D8FE75C419FA560BD0DE79EC0E4CFF3DB7CBD556284E23A45C550243C77F92C`
-- `Baballonia-Expressions-Preview-1-Portable-x64.zip` — SHA-256:
-  `15A9E3586255859C2D5BCD773FC0FD3527DF4DAEB93625E3C1924D503C82016A`
+- `Baballonia-Next-0.1.0-Setup-x64.exe` — SHA-256:
+  `FC69FE78AD4A30BC09015AFD5352984C620D44822F8785999709A8E6AA92BABB`
+- `Baballonia-Next-0.1.0-Portable-win-x64.zip` — SHA-256:
+  `3D019F682326EFA2C6BF4044E719902C6D60BAA92F0E7086A3E3A230A2932D53`
+- `Baballonia.Next-0.1.0-win-x64-full.nupkg` — SHA-256:
+  `2910301448BEC4F8C26392CCEF0927FA4D28E362DA1F812B44BE076FCAE2C88D`
 
 ## Verification performed
 
 - self-contained Windows x64 Release publish: succeeded with 0 errors
-- focused eye state and headset-registration tests: 40 passed, 0 failed
+- non-hardware .NET test suite: 100 passed, 0 failed
+- diagnostic-upload Worker test suite: 6 passed, 0 failed
 - portable archive contains the application, trainer, and VR calibration executables
-- published application smoke test: started, displayed the expected version, and closed cleanly
+- published application smoke test: remained stable and closed cleanly
+- a 20-second live diagnostic verified stable bilateral pupil visibility and smooth convergence output

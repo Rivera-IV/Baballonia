@@ -17,6 +17,8 @@
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
+*.dpapi
+*.decrypted.zip
 
 # Mono auto generated files
 mono_crash.*
@@ -417,6 +419,7 @@ src/Baballonia.Desktop/Calibration/Windows/Trainer/_internal
 
 # Local development, training and packaging artifacts
 /.tools/
+/.wrangler/
 /scratch/
 /ibl_db_*.pt
 /src/Baballonia.Desktop/Baballonia Setup*.exe

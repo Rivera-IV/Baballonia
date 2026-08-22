@@ -66,7 +66,7 @@ public class EyeProcessingClosedLidTests
     {
         using var pipeline = CreatePipeline();
         OrderedFloatMap? values = null;
-        for (var frame = 0; frame < 14; frame++)
+        for (var frame = 0; frame < 32; frame++)
         {
             values = CreateExpressions(
                 leftX: 0.7f,
@@ -117,7 +117,7 @@ public class EyeProcessingClosedLidTests
         // also remains exactly 0.5 at its midpoint.
         using var pipeline = CreatePipeline();
         OrderedFloatMap? values = null;
-        for (var frame = 0; frame < 10; frame++)
+        for (var frame = 0; frame < 24; frame++)
         {
             values = CreateExpressions(
                 leftX: 0.7f,
@@ -135,6 +135,56 @@ public class EyeProcessingClosedLidTests
 
         Assert.AreEqual(0.52f, values["/leftEyeX"], 0.0001f);
         Assert.AreEqual(-0.52f, values["/rightEyeX"], 0.0001f);
+    }
+
+    [TestMethod]
+    public void ConvergenceOutputUsesTimeBasedRampInsteadOfSnapping()
+    {
+        using var pipeline = CreatePipeline();
+        float? previousLeft = null;
+        float? previousRight = null;
+        var maximumStep = 0.0f;
+        OrderedFloatMap? values = null;
+
+        for (var frame = 0; frame < 32; frame++)
+        {
+            values = CreateExpressions(0.8f, 0.2f, 0, 0, 1, 0, 0, 0, 0);
+            Process(pipeline, values);
+            if (previousLeft.HasValue && previousRight.HasValue)
+            {
+                maximumStep = Math.Max(maximumStep,
+                    Math.Abs(values["/leftEyeX"] - previousLeft.Value));
+                maximumStep = Math.Max(maximumStep,
+                    Math.Abs(values["/rightEyeX"] - previousRight.Value));
+            }
+
+            previousLeft = values["/leftEyeX"];
+            previousRight = values["/rightEyeX"];
+        }
+        Assert.IsNotNull(values);
+
+        // Tests use the deterministic 90 Hz fallback interval. A 4.0/s blend rate therefore moves
+        // either coordinate by no more than about 0.043 per update from the clamped neutral base.
+        Assert.IsTrue(maximumStep <= 0.043f);
+        Assert.AreEqual(1.0f, values["/leftEyeX"], 0.0001f);
+        Assert.AreEqual(-1.0f, values["/rightEyeX"], 0.0001f);
+    }
+
+    [TestMethod]
+    public void RawConvergencePassDetectsWithoutSynthesizingCoordinates()
+    {
+        using var pipeline = CreatePipeline();
+        OrderedFloatMap? values = null;
+        for (var frame = 0; frame < 32; frame++)
+        {
+            values = CreateExpressions(0.8f, 0.2f, 0, 0, 1, 0, 0, 0, 0);
+            ProcessConvergenceDetectionOnly(pipeline, values);
+        }
+        Assert.IsNotNull(values);
+
+        Assert.IsTrue(TemporalConvergenceActive(pipeline, "_rawTemporalState"));
+        Assert.AreEqual(0.04f, values["/leftEyeX"], 0.0001f);
+        Assert.AreEqual(-0.04f, values["/rightEyeX"], 0.0001f);
     }
 
     [TestMethod]
@@ -586,7 +636,7 @@ public class EyeProcessingClosedLidTests
     }
 
     [TestMethod]
-    public void OpenEyesResumeFromCurrentlyUsablePupilWithoutLongVisibilityRecovery()
+    public void PreviouslyLostPupilsWaitForFilteredRecoveryThreshold()
     {
         using var pipeline = CreatePipeline();
         var open = CreateExpressions(0.4f, 0.4f, 0, 0, 0, 0, 0, 0, 0);
@@ -603,16 +653,16 @@ public class EyeProcessingClosedLidTests
             Process(pipeline, missing);
         }
 
-        // The live model frequently reports 0.03..0.08 for a visibly open pupil. That current
-        // observation is usable even though it has not crossed the higher recovery hysteresis.
+        // A raw visibility value can cross the loss boundary before the matching filtered gaze has
+        // caught up. Values below the recovery hysteresis must therefore remain held.
         var rightReturns = CreateExpressions(
             0.95f, 0.8f, 0, 0, 0, 0, 0, 0, 0,
             leftPupilVisibility: 0.001f,
             rightPupilVisibility: 0.04f);
         Process(pipeline, rightReturns);
 
-        Assert.AreEqual(0.6f, rightReturns["/rightEyeX"], 0.0001f);
-        Assert.AreNotEqual(open["/leftEyeX"], rightReturns["/leftEyeX"], 0.0001f);
+        Assert.AreEqual(open["/leftEyeX"], rightReturns["/leftEyeX"], 0.0001f);
+        Assert.AreEqual(open["/rightEyeX"], rightReturns["/rightEyeX"], 0.0001f);
     }
 
     [TestMethod]
@@ -682,8 +732,66 @@ public class EyeProcessingClosedLidTests
 
         Assert.IsTrue(Math.Abs(recovered["/leftEyeX"] - beforeRecovery) <= 0.1201f);
         Assert.IsTrue(
-            Math.Abs(recovered["/leftEyeX"] - recovered["/rightEyeX"]) <
-            Math.Abs(beforeRecovery - missing["/rightEyeX"]));
+            Math.Abs(recovered["/rightEyeX"] - recovered["/leftEyeX"]) <
+            Math.Abs(recovered["/rightEyeX"] - beforeRecovery));
+    }
+
+    [TestMethod]
+    public void RawVisibilityRecoveryCannotReleaseFilteredGazeEarly()
+    {
+        using var pipeline = CreatePipeline();
+        var open = CreateExpressions(0.4f, 0.4f, 0, 0, 0, 0, 0, 0, 0);
+        ProcessWithImmediateVisibility(pipeline, open, 1.0f, 1.0f);
+        var heldLeft = open["/leftEyeX"];
+        var heldRight = open["/rightEyeX"];
+
+        for (var frame = 0; frame < 3; frame++)
+        {
+            // OneEuro still considers the pupils visible, but the current raw frame vetoes both
+            // gaze coordinates immediately.
+            var rawLoss = CreateExpressions(
+                0.95f, 0.05f, 0, 0, 0, 0, 0, 0, 0,
+                leftPupilVisibility: 1.0f,
+                rightPupilVisibility: 1.0f);
+            ProcessWithImmediateVisibility(pipeline, rawLoss, 0.001f, 0.001f);
+            Assert.AreEqual(heldLeft, rawLoss["/leftEyeX"], 0.0001f);
+            Assert.AreEqual(heldRight, rawLoss["/rightEyeX"], 0.0001f);
+        }
+
+        var rawReturnsBeforeFilter = CreateExpressions(
+            0.95f, 0.05f, 0, 0, 0, 0, 0, 0, 0,
+            leftPupilVisibility: 0.04f,
+            rightPupilVisibility: 0.04f);
+        ProcessWithImmediateVisibility(pipeline, rawReturnsBeforeFilter, 0.2f, 0.2f);
+
+        Assert.AreEqual(heldLeft, rawReturnsBeforeFilter["/leftEyeX"], 0.0001f);
+        Assert.AreEqual(heldRight, rawReturnsBeforeFilter["/rightEyeX"], 0.0001f);
+    }
+
+    [TestMethod]
+    public void BilateralRecoveryCanFinishWithOneReliablePupil()
+    {
+        using var pipeline = CreatePipeline();
+        var open = CreateExpressions(0.4f, 0.4f, 0, 0, 0, 0, 0, 0, 0);
+        Process(pipeline, open);
+
+        var closed = CreateExpressions(0.9f, 0.1f, 1, 1, 0, 0, 0, 0, 0,
+            leftPupilVisibility: 0.001f,
+            rightPupilVisibility: 0.001f);
+        Process(pipeline, closed);
+
+        OrderedFloatMap? recovered = null;
+        for (var frame = 0; frame < 16; frame++)
+        {
+            recovered = CreateExpressions(0.95f, 0.8f, 0, 0, 0, 0, 0, 0, 0,
+                leftPupilVisibility: 0.001f,
+                rightPupilVisibility: 1.0f);
+            Process(pipeline, recovered);
+        }
+
+        Assert.IsNotNull(recovered);
+        Assert.AreEqual("Open", TemporalStateName(pipeline));
+        Assert.AreEqual(recovered["/rightEyeX"], recovered["/leftEyeX"], 0.0001f);
     }
 
     [TestMethod]
@@ -767,7 +875,7 @@ public class EyeProcessingClosedLidTests
         Process(pipeline, open);
 
         OrderedFloatMap? converged = null;
-        for (var frame = 0; frame < 14; frame++)
+        for (var frame = 0; frame < 48; frame++)
         {
             converged = CreateExpressions(
                 0.8f, 0.2f, 0, 0, 1, 0, 0, 0, 0,
@@ -827,6 +935,93 @@ public class EyeProcessingClosedLidTests
         Assert.IsNotNull(method);
         object?[] arguments = [values];
         method.Invoke(pipeline, arguments);
+    }
+
+    private static void ProcessWithImmediateVisibility(
+        EyeProcessingPipeline pipeline,
+        OrderedFloatMap values,
+        float immediateLeftPupilVisibility,
+        float immediateRightPupilVisibility)
+    {
+        var stateField = typeof(EyeProcessingPipeline).GetField(
+            "_filteredTemporalState", BindingFlags.Instance | BindingFlags.NonPublic);
+        var method = typeof(EyeProcessingPipeline).GetMethod(
+            "ProcessExpressionsCore", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.IsNotNull(stateField);
+        Assert.IsNotNull(method);
+        var temporalState = stateField.GetValue(pipeline);
+        Assert.IsNotNull(temporalState);
+        object?[] arguments =
+        [
+            values,
+            temporalState,
+            null,
+            null,
+            immediateLeftPupilVisibility,
+            immediateRightPupilVisibility,
+            Enum.Parse(method.GetParameters()[6].ParameterType, "Output"),
+            1.0f / 90.0f
+        ];
+        method.Invoke(pipeline, arguments);
+    }
+
+    private static void ProcessConvergenceDetectionOnly(
+        EyeProcessingPipeline pipeline,
+        OrderedFloatMap values)
+    {
+        var stateField = typeof(EyeProcessingPipeline).GetField(
+            "_rawTemporalState", BindingFlags.Instance | BindingFlags.NonPublic);
+        var method = typeof(EyeProcessingPipeline).GetMethod(
+            "ProcessExpressionsCore", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.IsNotNull(stateField);
+        Assert.IsNotNull(method);
+        var temporalState = stateField.GetValue(pipeline);
+        Assert.IsNotNull(temporalState);
+        object?[] arguments =
+        [
+            values,
+            temporalState,
+            null,
+            null,
+            null,
+            null,
+            Enum.Parse(method.GetParameters()[6].ParameterType, "DetectOnly"),
+            1.0f / 90.0f
+        ];
+        method.Invoke(pipeline, arguments);
+    }
+
+    private static bool TemporalConvergenceActive(
+        EyeProcessingPipeline pipeline,
+        string temporalStateFieldName)
+    {
+        var stateField = typeof(EyeProcessingPipeline).GetField(
+            temporalStateFieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(stateField);
+        var temporalState = stateField.GetValue(pipeline);
+        Assert.IsNotNull(temporalState);
+        var snapshot = temporalState.GetType().GetProperty(
+            "Snapshot", BindingFlags.Instance | BindingFlags.Public)?.GetValue(temporalState);
+        Assert.IsNotNull(snapshot);
+        return (bool)(snapshot.GetType().GetProperty("ConvergenceActive")?.GetValue(snapshot)
+                      ?? false);
+    }
+
+    private static string TemporalStateName(EyeProcessingPipeline pipeline)
+    {
+        var stateField = typeof(EyeProcessingPipeline).GetField(
+            "_filteredTemporalState", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(stateField);
+        var temporalState = stateField.GetValue(pipeline);
+        Assert.IsNotNull(temporalState);
+        var snapshot = temporalState.GetType().GetProperty(
+            "Snapshot", BindingFlags.Instance | BindingFlags.Public)?.GetValue(temporalState);
+        Assert.IsNotNull(snapshot);
+        var state = snapshot.GetType().GetProperty("State")?.GetValue(snapshot) as string;
+        Assert.IsNotNull(state);
+        return state;
     }
 
     private static OrderedFloatMap CreateExpressions(

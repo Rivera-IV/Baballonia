@@ -1,0 +1,24 @@
+{
+  "name": "baballonia-diagnostic-upload",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Private upload service for end-to-end encrypted Baballonia diagnostic reports.",
+  "scripts": {
+    "wrangler": "wrangler",
+    "cloudflare:whoami": "wrangler whoami",
+    "types": "wrangler types",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit",
+    "test": "vitest run",
+    "check": "npm run types && npm run typecheck && npm test",
+    "deploy:dry": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.0.0",
+    "@cloudflare/workers-types": "5.20260822.1",
+    "@types/node": "26.2.0",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.125.0"
+  }
+}

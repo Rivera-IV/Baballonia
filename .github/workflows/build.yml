@@ -14,6 +14,7 @@ on:
       version-number:
         description: 'Version Number for Release'
         type: string
+        default: '0.1.0'
       release-name-info:
         description: 'Additional info to put at the end of the release name'
         type: string
@@ -36,8 +37,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - { name: steamrt4-x64, result: Baballonia.x64.tar.xz, runs-on: ubuntu-22.04, upload-path: src/Baballonia.Desktop/bin/Baballonia.x64.tar.xz, arch: linux-x64, container: "registry.gitlab.steamos.cloud/steamrt/steamrt4/sdk:latest" }
-          - { name: steamrt4-arm, result: Baballonia.arm64.tar.xz, runs-on: ubuntu-22.04-arm, upload-path: src/Baballonia.Desktop/bin/Baballonia.arm64.tar.xz, arch: linux-arm64, container: "registry.gitlab.steamos.cloud/steamrt/steamrt4/sdk/arm64:latest" }
+          - { name: steamrt4-x64, result: Baballonia-Next-linux-x64.tar.xz, runs-on: ubuntu-22.04, upload-path: src/Baballonia.Desktop/bin/Baballonia-Next-linux-x64.tar.xz, arch: linux-x64, container: "registry.gitlab.steamos.cloud/steamrt/steamrt4/sdk:latest" }
+          - { name: steamrt4-arm, result: Baballonia-Next-linux-arm64.tar.xz, runs-on: ubuntu-22.04-arm, upload-path: src/Baballonia.Desktop/bin/Baballonia-Next-linux-arm64.tar.xz, arch: linux-arm64, container: "registry.gitlab.steamos.cloud/steamrt/steamrt4/sdk/arm64:latest" }
 
     runs-on: ${{ matrix.runs-on }}
 
@@ -81,11 +82,19 @@ jobs:
         run: ./download_dependencies.sh
 
       - name: Run publish
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version-number }}
         run: |
           cd src/Baballonia.Desktop
-          version_arg=()
-          [ -n "${{ github.event.inputs.version-number }}" ] && version_arg=(-p:Version="${{ github.event.inputs.version-number }}")
-          dotnet publish -r ${{ matrix.arch }} -c Release --self-contained -f net10.0 "${version_arg[@]}"
+          version="${RELEASE_VERSION:-0.1.0}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid Semantic Version: $version"
+            exit 1
+          fi
+          numeric_version="${version%%[-+]*}"
+          file_version="${numeric_version}.0"
+          dotnet publish -r ${{ matrix.arch }} -c Release --self-contained -f net10.0 \
+            -p:Version="$version" -p:AssemblyVersion="$file_version" -p:FileVersion="$file_version"
           cd "bin/Release/net10.0/${{ matrix.arch }}/publish"
           tar -cJf ./../../../../${{ matrix.result }} *
 
@@ -109,40 +118,92 @@ jobs:
           submodules: 'recursive'
           lfs: true
 
-      - name: Install NSIS
-        uses: negrutiu/nsis-install@v2
-        with:
-           arch: x64
-
       - name: Download dependencies
         shell: pwsh
         run: ./download_dependencies.ps1
 
       - name: Build project
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version-number }}
         run: |
           cd src/Baballonia.Desktop
-          version_arg=()
-          [ -n "${{ github.event.inputs.version-number }}" ] && version_arg=(-p:Version="${{ github.event.inputs.version-number }}")
-          dotnet publish -r win-x64 -c Release --self-contained -f net10.0 "${version_arg[@]}"
+          version="${RELEASE_VERSION:-0.1.0}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid Semantic Version: $version"
+            exit 1
+          fi
+          numeric_version="${version%%[-+]*}"
+          file_version="${numeric_version}.0"
+          dotnet publish -r win-x64 -c Release --self-contained -f net10.0 \
+            -p:Version="$version" -p:AssemblyVersion="$file_version" -p:FileVersion="$file_version"
           cd "bin/Release/net10.0/win-x64/publish"
-          tar -cJf ./../../../../Baballonia.win.tar.xz *
+          tar -cJf ./../../../../Baballonia-Next-win-x64.tar.xz *
 
-      - name: Run makensis
+      - name: Install Velopack CLI
+        shell: pwsh
+        run: dotnet tool install --tool-path .tools vpk --version 1.2.0
+
+      - name: Build installer, portable archive, and update feed
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version-number }}
+          RELEASE_NOTES: ${{ github.event.inputs.release-notes }}
         run: |
-          cd src/Baballonia.Desktop
-          makensis -DWORKFLOW_VERSION="${{ github.event.inputs.version-number }}" main.nsi
+          $desktopDirectory = Join-Path $env:GITHUB_WORKSPACE 'src/Baballonia.Desktop'
+          $publishDirectory = Join-Path $desktopDirectory 'bin/Release/net10.0/win-x64/publish'
+          $releaseDirectory = Join-Path $desktopDirectory 'Releases'
+          $releaseNotesFile = Join-Path $desktopDirectory 'release-notes.md'
+          $notes = if ([string]::IsNullOrWhiteSpace($env:RELEASE_NOTES)) {
+            "Baballonia Next $env:RELEASE_VERSION"
+          } else {
+            $env:RELEASE_NOTES
+          }
+
+          Set-Content -LiteralPath $releaseNotesFile -Value $notes -Encoding utf8
+
+          & "$env:GITHUB_WORKSPACE/.tools/vpk.exe" pack `
+            --packId Baballonia.Next `
+            --packTitle "Baballonia Next" `
+            --packVersion $env:RELEASE_VERSION `
+            --packDir $publishDirectory `
+            --mainExe Baballonia.Desktop.exe `
+            --outputDir $releaseDirectory `
+            --channel win-x64 `
+            --runtime win-x64 `
+            --icon (Join-Path $desktopDirectory 'Assets/IconOpaque.ico') `
+            --releaseNotes $releaseNotesFile
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+          Move-Item -LiteralPath (Join-Path $releaseDirectory 'Baballonia.Next-win-x64-Setup.exe') `
+            -Destination (Join-Path $releaseDirectory "Baballonia-Next-$env:RELEASE_VERSION-Setup-x64.exe")
+          Move-Item -LiteralPath (Join-Path $releaseDirectory 'Baballonia.Next-win-x64-Portable.zip') `
+            -Destination (Join-Path $releaseDirectory "Baballonia-Next-$env:RELEASE_VERSION-Portable-win-x64.zip")
+
+          $assetsFile = Join-Path $releaseDirectory 'assets.win-x64.json'
+          $assets = Get-Content -LiteralPath $assetsFile -Raw | ConvertFrom-Json
+          foreach ($asset in $assets) {
+            if ($asset.Type -eq 'Installer') {
+              $asset.RelativeFileName = "Baballonia-Next-$env:RELEASE_VERSION-Setup-x64.exe"
+            } elseif ($asset.Type -eq 'Portable') {
+              $asset.RelativeFileName = "Baballonia-Next-$env:RELEASE_VERSION-Portable-win-x64.zip"
+            }
+          }
+          $assets | ConvertTo-Json -Compress | Set-Content -LiteralPath $assetsFile -Encoding utf8
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: "Baballonia Setup.exe"
-          path: "src/Baballonia.Desktop/Baballonia Setup.exe"
+          name: "Baballonia-Next-windows-release"
+          path: "src/Baballonia.Desktop/Releases/*"
 
       - name: Upload tarball artifact
         uses: actions/upload-artifact@v4
         with:
-          name: "Baballonia.win.tar.xz"
-          path: "src/Baballonia.Desktop/bin/Baballonia.win.tar.xz"
+          name: "Baballonia-Next-win-x64.tar.xz"
+          path: "src/Baballonia.Desktop/bin/Baballonia-Next-win-x64.tar.xz"
 
   publish-release:
     needs: [build-linux, build-windows-x64]
@@ -165,19 +226,19 @@ jobs:
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: "Baballonia Setup.exe"
+          name: "Baballonia-Next-windows-release"
           path: ./artifacts
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
-          name: Baballonia.x64.tar.xz
+          name: Baballonia-Next-linux-x64.tar.xz
           path: ./artifacts
 
       - name: Download Linux ARM artifact
         uses: actions/download-artifact@v4
         with:
-          name: Baballonia.arm64.tar.xz
+          name: Baballonia-Next-linux-arm64.tar.xz
           path: ./artifacts
 
       - name: Rename artifacts
@@ -185,17 +246,16 @@ jobs:
           VERSION: ${{ github.event.inputs.version-number }}
         run: |
           cd artifacts
-          mv "Baballonia Setup.exe" "Baballonia.Setup.${VERSION}.exe"
-          mv "Baballonia.x64.tar.xz" "Baballonia.x64.${VERSION}.tar.xz"
-          mv "Baballonia.arm64.tar.xz" "Baballonia.arm64.${VERSION}.tar.xz"
+          mv "Baballonia-Next-linux-x64.tar.xz" "Baballonia-Next-${VERSION}-linux-x64.tar.xz"
+          mv "Baballonia-Next-linux-arm64.tar.xz" "Baballonia-Next-${VERSION}-linux-arm64.tar.xz"
 
       - name: Set dynamic release name
         id: release-name
         run: |
           if [[ -z "${{ github.event.inputs.release-name-info }}" ]]; then
-            echo "name=${{ github.event.inputs.version-number }}" >> "$GITHUB_OUTPUT"
+            echo "name=Baballonia Next ${{ github.event.inputs.version-number }}" >> "$GITHUB_OUTPUT"
           else
-            echo "name=${{ github.event.inputs.version-number }} - ${{ github.event.inputs.release-name-info }}" >> "$GITHUB_OUTPUT"
+            echo "name=Baballonia Next ${{ github.event.inputs.version-number }} - ${{ github.event.inputs.release-name-info }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set release body or generate notes
@@ -214,11 +274,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/Baballonia.Setup.${{ github.event.inputs.version-number }}.exe
-            artifacts/Baballonia.x64.${{ github.event.inputs.version-number }}.tar.xz
-            artifacts/Baballonia.arm64.${{ github.event.inputs.version-number }}.tar.xz
-          tag_name: ${{ github.event.inputs.version-number }}
+          files: artifacts/*
+          tag_name: v${{ github.event.inputs.version-number }}
           name: ${{ steps.release-name.outputs.name }}
           prerelease: ${{ github.event.inputs.publish-pre-release }}
           body: ${{ steps.release-body.outputs.body }}
@@ -243,27 +300,27 @@ jobs:
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: Baballonia.win.tar.xz
+          name: Baballonia-Next-win-x64.tar.xz
           path: ./artifacts
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
-          name: Baballonia.x64.tar.xz
+          name: Baballonia-Next-linux-x64.tar.xz
           path: ./artifacts
 
       #- name: Download Linux ARM artifact
       #  uses: actions/download-artifact@v4
       #  with:
-      #    name: Baballonia.arm64.tar.xz
+      #    name: Baballonia-Next-linux-arm64.tar.xz
       #    path: ./artifacts
 
       - name: Untar artifacts
         run: |
           mkdir -p ./builds/windows
           mkdir -p ./builds/linux-x64
-          tar -xf ./artifacts/Baballonia.win.tar.xz --directory ./builds/windows
-          tar -xf ./artifacts/Baballonia.x64.tar.xz --directory ./builds/linux-x64
+          tar -xf ./artifacts/Baballonia-Next-win-x64.tar.xz --directory ./builds/windows
+          tar -xf ./artifacts/Baballonia-Next-linux-x64.tar.xz --directory ./builds/linux-x64
 
       - name: Upload to Steam
         uses: game-ci/steam-deploy@v3

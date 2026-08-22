@@ -16,7 +16,7 @@ public partial class MainWindow : Window
         DataContext = vm;
         InitializeComponent();
         AdjustTitleBarForPlatform();
-        AppNameAndVersion.Text = $"Baballonia Expressions Preview v{GetDisplayVersion()}";
+        AppNameAndVersion.Text = $"Baballonia Next v{GetDisplayVersion()}";
         Window.Title = AppNameAndVersion.Text;
     }
 
