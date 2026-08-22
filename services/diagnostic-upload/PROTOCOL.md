@@ -39,4 +39,6 @@ must never be committed, deployed to Cloudflare, or included in Baballonia.
 - `X-Content-SHA256`: lowercase or uppercase hexadecimal SHA-256 of the complete `.babdiag` file.
 
 The successful response returns a random report ID, an expiry timestamp, and a one-time deletion
-token. Only the token hash is stored. There is no public report-download route.
+token. Only the token hash is stored. There is no public report-download route. If accepting a
+report would raise total bucket storage above 8 GB, the service returns HTTP 507 with the code
+`storage_limit_reached` and does not retain any part of that report.

@@ -23,6 +23,11 @@ Production configuration uses a private EU-jurisdiction R2 bucket and a 14-day o
 Lifecycle deletion is asynchronous, so Cloudflare may take additional time to remove an expired
 object. The uploader receives a deletion token that can remove it sooner.
 
+The Worker enforces an 8 GB bucket-wide storage ceiling, leaving headroom below R2's 10 GB-month
+free tier. A single Durable Object serializes the low-volume upload admission check and R2 write,
+so concurrent uploads cannot overrun the ceiling. The check lists the actual bucket contents, which
+means existing objects, manual deletions, and lifecycle deletions are reflected automatically.
+
 Checks:
 
 ```powershell

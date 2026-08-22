@@ -1,3 +1,5 @@
+import { DurableObject } from "cloudflare:workers";
+
 const CONTENT_TYPE = "application/vnd.baballonia.diagnostic+encrypted";
 const FORMAT_VERSION = "1";
 const CONSENT_VERSION = "eye-images-v1";
@@ -101,15 +103,29 @@ async function rateLimitKey(request: Request, purpose: string): Promise<string> 
   return sha256Hex(`${purpose}:${address}`);
 }
 
-async function uploadReport(request: Request, env: Env): Promise<Response> {
-  const rateKey = await rateLimitKey(request, "upload");
-  const rate = await env.REQUEST_RATE_LIMITER.limit({ key: rateKey });
-  if (!rate.success) {
-    return error("rate_limited", "Too many report uploads. Please wait and try again.", 429, {
-      "Retry-After": "60",
-    });
-  }
+async function storedBytes(bucket: R2Bucket): Promise<number> {
+  let total = 0;
+  let cursor: string | undefined;
 
+  do {
+    const page = await bucket.list({ limit: 1_000, cursor });
+    for (const object of page.objects) {
+      if (!Number.isSafeInteger(object.size) || object.size < 0 ||
+          total > Number.MAX_SAFE_INTEGER - object.size) {
+        throw new RangeError("R2 storage usage cannot be represented safely");
+      }
+      total += object.size;
+    }
+
+    if (!page.truncated) break;
+    if (!page.cursor) throw new TypeError("R2 returned a truncated list without a cursor");
+    cursor = page.cursor;
+  } while (true);
+
+  return total;
+}
+
+async function storeReport(request: Request, env: Env): Promise<Response> {
   if (request.headers.get("Content-Type")?.toLowerCase() !== CONTENT_TYPE) {
     return error("unsupported_content_type", "The report content type is not supported.", 415);
   }
@@ -137,11 +153,26 @@ async function uploadReport(request: Request, env: Env): Promise<Response> {
     return error("report_too_large", "The encrypted report exceeds the upload limit.", 413);
   }
 
+  const maxStoredBytes = Number(env.MAX_STORED_BYTES);
+  if (!Number.isSafeInteger(maxStoredBytes) || maxStoredBytes <= 0) {
+    throw new RangeError("MAX_STORED_BYTES must be a positive safe integer");
+  }
+
   const checksum = request.headers.get("X-Content-SHA256") ?? "";
   if (!SHA256_PATTERN.test(checksum)) {
     return error("invalid_checksum", "A valid SHA-256 checksum is required.", 400);
   }
   if (!request.body) return error("body_required", "The encrypted report body is required.", 400);
+
+  const currentStoredBytes = await storedBytes(env.REPORTS);
+  if (currentStoredBytes > maxStoredBytes - contentLength) {
+    return error(
+      "storage_limit_reached",
+      "Diagnostic storage is currently full. Please try again later.",
+      507,
+      { "Retry-After": "3600" },
+    );
+  }
 
   const reportId = crypto.randomUUID();
   const objectKey = `reports/${reportId}.babdiag`;
@@ -188,6 +219,37 @@ async function uploadReport(request: Request, env: Env): Promise<Response> {
     deleteToken,
     expiresAt: expiresAt.toISOString(),
   }, 201);
+}
+
+export class UploadQuota extends DurableObject<Env> {
+  private uploadQueue: Promise<void> = Promise.resolve();
+
+  override fetch(request: Request): Promise<Response> {
+    // R2 listing and upload are external I/O and can otherwise interleave between DO events.
+    // Keeping the complete admission check and put in this queue makes the bucket-wide cap strict.
+    const result = this.uploadQueue.then(() => storeReport(request, this.env));
+    this.uploadQueue = result.then(() => undefined, () => undefined);
+    return result;
+  }
+}
+
+async function uploadReport(request: Request, env: Env): Promise<Response> {
+  const rateKey = await rateLimitKey(request, "upload");
+  const rate = await env.REQUEST_RATE_LIMITER.limit({ key: rateKey });
+  if (!rate.success) {
+    return error("rate_limited", "Too many report uploads. Please wait and try again.", 429, {
+      "Retry-After": "60",
+    });
+  }
+
+  // workerd does not implement jurisdiction subnamespaces, so local tests override this setting.
+  const quotaNamespace = String(env.UPLOAD_QUOTA_JURISDICTION) === "eu"
+    ? env.UPLOAD_QUOTA.jurisdiction("eu")
+    : env.UPLOAD_QUOTA;
+  const quota = quotaNamespace.getByName("diagnostic-report-bucket", {
+    locationHint: "weur",
+  });
+  return quota.fetch(request);
 }
 
 function bearerToken(request: Request): string | null {
@@ -250,7 +312,13 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       return await route(request, env);
-    } catch {
+    } catch (exception) {
+      console.error(JSON.stringify({
+        message: "diagnostic upload request failed",
+        method: request.method,
+        path: new URL(request.url).pathname,
+        error: exception instanceof Error ? exception.message : String(exception),
+      }));
       return error("internal_error", "The report service could not process the request.", 500);
     }
   },

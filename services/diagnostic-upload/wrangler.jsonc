@@ -12,6 +12,20 @@
       "jurisdiction": "eu"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "UPLOAD_QUOTA",
+        "class_name": "UploadQuota"
+      }
+    ]
+  },
+  "exports": {
+    "UploadQuota": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
   "ratelimits": [
     {
       "name": "REQUEST_RATE_LIMITER",
@@ -24,7 +38,9 @@
   ],
   "vars": {
     "MAX_UPLOAD_BYTES": "78643200",
-    "RETENTION_DAYS": "14"
+    "MAX_STORED_BYTES": "8000000000",
+    "RETENTION_DAYS": "14",
+    "UPLOAD_QUOTA_JURISDICTION": "eu"
   },
   "observability": {
     "enabled": false

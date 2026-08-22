@@ -1,5 +1,6 @@
 import { env, exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { reset } from "cloudflare:test";
+import { afterEach, describe, expect, it } from "vitest";
 
 const CONTENT_TYPE = "application/vnd.baballonia.diagnostic+encrypted";
 
@@ -42,6 +43,10 @@ async function uploadRequest(bytes: Uint8Array, ip: string, checksumOverride?: s
 }
 
 describe.sequential("diagnostic upload service", () => {
+  afterEach(async () => {
+    await reset();
+  });
+
   it("returns a private, non-cacheable health response", async () => {
     const response = await exports.default.fetch("https://diagnostics.example/health");
     expect(response.status).toBe(200);
@@ -102,6 +107,54 @@ describe.sequential("diagnostic upload service", () => {
     ));
     expect(removed.status).toBe(200);
     expect(await env.REPORTS.head(key)).toBeNull();
+  });
+
+  it("counts every existing bucket object toward the storage ceiling", async () => {
+    await env.REPORTS.put("existing-object", new Uint8Array(700));
+
+    const response = await exports.default.fetch(
+      await uploadRequest(diagnosticBytes(), "198.51.100.20"),
+    );
+
+    expect(response.status).toBe(507);
+    expect(response.headers.get("Retry-After")).toBe("3600");
+    await expect(response.json()).resolves.toMatchObject({ code: "storage_limit_reached" });
+  });
+
+  it("makes capacity available immediately after a report is deleted", async () => {
+    const bytes = diagnosticBytes();
+    const upload = await exports.default.fetch(await uploadRequest(bytes, "198.51.100.21"));
+    const receipt = await upload.json<UploadResponse>();
+    expect(upload.status).toBe(201);
+
+    const full = await exports.default.fetch(await uploadRequest(bytes, "198.51.100.22"));
+    expect(full.status).toBe(507);
+    await full.json();
+
+    const removed = await exports.default.fetch(new Request(
+      `https://diagnostics.example/v1/reports/${receipt.reportId}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${receipt.deleteToken}` } },
+    ));
+    expect(removed.status).toBe(200);
+    await removed.json();
+
+    const retried = await exports.default.fetch(await uploadRequest(bytes, "198.51.100.23"));
+    expect(retried.status).toBe(201);
+    await retried.json();
+  });
+
+  it("serializes concurrent uploads so they cannot exceed the storage ceiling", async () => {
+    const [first, second] = await Promise.all([
+      exports.default.fetch(await uploadRequest(diagnosticBytes(), "198.51.100.24")),
+      exports.default.fetch(await uploadRequest(diagnosticBytes(), "198.51.100.25")),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([201, 507]);
+    await Promise.all([first.json(), second.json()]);
+
+    const listed = await env.REPORTS.list();
+    expect(listed.objects).toHaveLength(1);
+    expect(listed.objects[0]?.size).toBe(768);
   });
 
   it("rate limits repeated upload attempts without storing the address", async () => {
