@@ -480,7 +480,10 @@ public class EyeProcessingClosedLidTests
             Process(pipeline, fullyBlended);
         }
         Assert.IsNotNull(fullyBlended);
-        Assert.AreEqual(0.8f, fullyBlended["/leftEyeX"], 0.0001f);
+        // The recovering eye still reaches its live gaze, but the hand-off frame must respect the
+        // same left/right limit as the Open state (0.08) instead of briefly crossing the eyes.
+        Assert.AreEqual(
+            fullyBlended["/rightEyeX"] + 0.08f, fullyBlended["/leftEyeX"], 0.0001f);
     }
 
     [TestMethod]
@@ -714,7 +717,7 @@ public class EyeProcessingClosedLidTests
             0.95f, 0.7f, 0, 0, 0, 0, 0, 0, 0,
             leftPupilVisibility: 0.02f,
             rightPupilVisibility: 1.0f);
-        for (var frame = 0; frame < 3; frame++)
+        for (var frame = 0; frame < 6; frame++)
         {
             missing = CreateExpressions(
                 0.95f, 0.7f, 0, 0, 0, 0, 0, 0, 0,
@@ -887,6 +890,31 @@ public class EyeProcessingClosedLidTests
 
         Assert.AreEqual(1.0f, converged["/leftEyeX"], 0.0001f);
         Assert.AreEqual(-1.0f, converged["/rightEyeX"], 0.0001f);
+    }
+
+    [TestMethod]
+    public void ConvergenceIsIgnoredWhileNoPupilIsClearlyVisible()
+    {
+        using var pipeline = CreatePipeline();
+        var open = CreateExpressions(0.5f, 0.5f, 0, 0, 0, 0, 0, 0, 0);
+        Process(pipeline, open);
+
+        // Both visibility heads sit above the missing threshold but far below clear visibility.
+        // A confident convergence head must not cross the eyes in that situation.
+        OrderedFloatMap? values = null;
+        for (var frame = 0; frame < 48; frame++)
+        {
+            values = CreateExpressions(
+                0.8f, 0.2f, 0, 0, 1, 0, 0, 0, 0,
+                leftPupilVisibility: 0.06f,
+                rightPupilVisibility: 0.06f);
+            Process(pipeline, values);
+        }
+        Assert.IsNotNull(values);
+
+        Assert.IsFalse(TemporalConvergenceActive(pipeline, "_rawTemporalState"));
+        Assert.IsTrue(Math.Abs(values["/leftEyeX"]) < 0.5f);
+        Assert.IsTrue(Math.Abs(values["/rightEyeX"]) < 0.5f);
     }
 
     [TestMethod]
