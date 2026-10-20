@@ -14,7 +14,7 @@ on:
       version-number:
         description: 'Version Number for Release'
         type: string
-        default: '0.1.0'
+        default: '0.1.1'
       release-name-info:
         description: 'Additional info to put at the end of the release name'
         type: string
