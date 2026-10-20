@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -433,7 +433,14 @@ public class EyeProcessingPipeline(
         // Visibility is a learned auxiliary output and the live trace contains isolated low samples
         // even with a fully open lid. Require a short streak before declaring an open pupil lost;
         // actual blinks and winks still transition immediately through their independent lid signal.
+        // Frames of continuous low visibility before a pupil is declared lost when the other pupil
+        // is still tracked. The per-frame visibility veto still protects the output immediately;
+        // this only gates entry into the long-lived recovery states. Single-pupil visibility dropouts
+        // were frequent in live diagnostics, and each false entry exposed the output to
+        // single-eye recovery blending. When both pupils are missing the short value is kept so
+        // gaze is still held quickly.
         private const int PupilLossConfirmationFrames = 3;
+        private const int SinglePupilLossConfirmationFrames = 6;
         private const float PupilFollowStepPerFrame = 0.12f;
         private const float RecoveryStepPerFrame = 0.12f;
         private const float MaximumNormalInwardDifference = 0.08f;
@@ -446,6 +453,12 @@ public class EyeProcessingPipeline(
 
         // Convergence is a modifier of the fully-open state, never an independent owner of gaze.
         // Hysteresis and confirmation prevent ordinary model noise from briefly entering cross-eye.
+        // Convergence is only trusted while at least one pupil is clearly visible. In live
+        // diagnostics the convergence head produced sustained false positives (a roughly two
+        // second full cross-eye) while both visibility heads read near zero, and the gaze evidence
+        // used to confirm it comes from the same unreliable model output. Models without
+        // visibility heads are not gated.
+        private const float ConvergenceMinimumPupilVisibility = 0.18f;
         private const float ConvergenceEnter = 0.32f;
         private const float ConvergenceExit = 0.20f;
         // The trained head sometimes remains high during ordinary gaze. Confirm it with the two
@@ -534,6 +547,20 @@ public class EyeProcessingPipeline(
             var wasRightPupilReliable = _rightPupilReliable;
             var immediateLeftPupilMissing = IsPupilMissing(immediateLeftPupilVisibility);
             var immediateRightPupilMissing = IsPupilMissing(immediateRightPupilVisibility);
+            var leftPartnerMissing = immediateRightPupilMissing ||
+                                     IsPupilMissing(rightPupilVisibility) ||
+                                     rightLid <= CoveredOpenness ||
+                                     !wasRightPupilReliable;
+            var rightPartnerMissing = immediateLeftPupilMissing ||
+                                      IsPupilMissing(leftPupilVisibility) ||
+                                      leftLid <= CoveredOpenness ||
+                                      !wasLeftPupilReliable;
+            var leftLossConfirmationFrames = leftPartnerMissing
+                ? PupilLossConfirmationFrames
+                : SinglePupilLossConfirmationFrames;
+            var rightLossConfirmationFrames = rightPartnerMissing
+                ? PupilLossConfirmationFrames
+                : SinglePupilLossConfirmationFrames;
             if (leftLid <= CoveredOpenness)
             {
                 _leftPupilReliable = false;
@@ -544,6 +571,7 @@ public class EyeProcessingPipeline(
                 _leftPupilReliable = UpdatePupilReliability(
                     wasLeftPupilReliable, leftPupilVisibility,
                     immediateLeftPupilMissing,
+                    leftLossConfirmationFrames,
                     ref _leftPupilMissingFrames);
             }
             if (rightLid <= CoveredOpenness)
@@ -556,6 +584,7 @@ public class EyeProcessingPipeline(
                 _rightPupilReliable = UpdatePupilReliability(
                     wasRightPupilReliable, rightPupilVisibility,
                     immediateRightPupilMissing,
+                    rightLossConfirmationFrames,
                     ref _rightPupilMissingFrames);
             }
 
@@ -582,6 +611,14 @@ public class EyeProcessingPipeline(
                 !wasLeftPupilReliable && _leftPupilReliable,
                 !wasRightPupilReliable && _rightPupilReliable);
 
+            // The normal binocular limit is only applied to models with a trained convergence head,
+            // exactly as in the Open state. Recovery blending must not bypass it.
+            var constrainRecoveryDifference = stabilizeEyes && trainedConvergence.HasValue;
+            var convergencePupilVisible =
+                (!leftPupilVisibility.HasValue && !rightPupilVisibility.HasValue) ||
+                (leftPupilVisibility ?? 0.0f) >= ConvergenceMinimumPupilVisibility ||
+                (rightPupilVisibility ?? 0.0f) >= ConvergenceMinimumPupilVisibility;
+
             switch (_state)
             {
                 case EyeState.Open:
@@ -589,7 +626,8 @@ public class EyeProcessingPipeline(
                         ref leftX, ref rightX, ref y, leftY, rightY,
                         leftPupilAvailable, rightPupilAvailable,
                         trainedConvergence, stabilizeEyes,
-                        applyConvergenceOutput, temporalDeltaSeconds);
+                        applyConvergenceOutput, convergencePupilVisible,
+                        temporalDeltaSeconds);
                     break;
 
                 case EyeState.LeftWinkCandidate:
@@ -625,19 +663,22 @@ public class EyeProcessingPipeline(
 
                 case EyeState.RecoverLeft:
                     ResetConvergence();
-                    ApplyLeftRecovery(ref leftX, rightX, ref y, rightY);
+                    ApplyLeftRecovery(
+                        ref leftX, rightX, ref y, rightY, constrainRecoveryDifference);
                     break;
 
                 case EyeState.RecoverRight:
                     ResetConvergence();
-                    ApplyRightRecovery(leftX, ref rightX, ref y, leftY);
+                    ApplyRightRecovery(
+                        leftX, ref rightX, ref y, leftY, constrainRecoveryDifference);
                     break;
 
                 case EyeState.RecoverBoth:
                     ResetConvergence();
                     ApplyBothRecovery(
                         ref leftX, ref rightX, ref y, leftY, rightY,
-                        _leftPupilReliable, _rightPupilReliable, stabilizeEyes);
+                        _leftPupilReliable, _rightPupilReliable, stabilizeEyes,
+                        constrainRecoveryDifference);
                     break;
             }
 
@@ -874,32 +915,50 @@ public class EyeProcessingPipeline(
                 _recoveryBlendFrame++;
         }
 
-        private void ApplyLeftRecovery(ref float leftX, float rightX, ref float y, float rightY)
+        private void ApplyLeftRecovery(
+            ref float leftX, float rightX, ref float y, float rightY,
+            bool constrainBinocularDifference)
         {
             var blend = RecoveryBlend(EyeRecoveryBlendFrames);
             var sourceX = _recoveryUsesVisibleEye ? rightX : _heldLeftX;
             var sourceY = _recoveryUsesVisibleEye ? rightY : _heldY;
             var targetX = Lerp(sourceX, leftX, blend);
             var targetY = Lerp(sourceY, y, blend);
+            // Constrain the blend target itself, not only the emitted value. Clamping just the
+            // output would pull the eye back every frame, so it could never reach an unconstrained
+            // target and the exit test below would trap the state machine in recovery.
+            if (constrainBinocularDifference)
+                targetX = ConstrainToPartnerEye(rightX, targetX, isLeftEye: true);
             leftX = MoveTowards(_lastOutputLeftX, targetX, RecoveryStepPerFrame);
             y = MoveTowards(_lastOutputY, targetY, RecoveryStepPerFrame);
             if (_recoveryBlendFrame >= EyeRecoveryBlendFrames &&
                 NearlyEqual(leftX, targetX) && NearlyEqual(y, targetY))
                 Enter(EyeState.Open);
+
+            // The partner eye keeps moving, so re-apply the limit to the emitted value as well.
+            if (constrainBinocularDifference)
+                leftX = ConstrainToPartnerEye(rightX, leftX, isLeftEye: true);
         }
 
-        private void ApplyRightRecovery(float leftX, ref float rightX, ref float y, float leftY)
+        private void ApplyRightRecovery(
+            float leftX, ref float rightX, ref float y, float leftY,
+            bool constrainBinocularDifference)
         {
             var blend = RecoveryBlend(EyeRecoveryBlendFrames);
             var sourceX = _recoveryUsesVisibleEye ? leftX : _heldRightX;
             var sourceY = _recoveryUsesVisibleEye ? leftY : _heldY;
             var targetX = Lerp(sourceX, rightX, blend);
             var targetY = Lerp(sourceY, y, blend);
+            if (constrainBinocularDifference)
+                targetX = ConstrainToPartnerEye(leftX, targetX, isLeftEye: false);
             rightX = MoveTowards(_lastOutputRightX, targetX, RecoveryStepPerFrame);
             y = MoveTowards(_lastOutputY, targetY, RecoveryStepPerFrame);
             if (_recoveryBlendFrame >= EyeRecoveryBlendFrames &&
                 NearlyEqual(rightX, targetX) && NearlyEqual(y, targetY))
                 Enter(EyeState.Open);
+
+            if (constrainBinocularDifference)
+                rightX = ConstrainToPartnerEye(leftX, rightX, isLeftEye: false);
         }
 
         private void ApplyBothRecovery(
@@ -910,7 +969,8 @@ public class EyeProcessingPipeline(
             float rightY,
             bool leftPupilReliable,
             bool rightPupilReliable,
-            bool stabilizeEyes)
+            bool stabilizeEyes,
+            bool constrainBinocularDifference)
         {
             var targetLeftX = leftX;
             var targetRightX = rightX;
@@ -943,6 +1003,10 @@ public class EyeProcessingPipeline(
             var desiredLeftX = Lerp(_heldLeftX, targetLeftX, blend);
             var desiredRightX = Lerp(_heldRightX, targetRightX, blend);
             var desiredY = Lerp(_heldY, targetY, blend);
+            var constrainDesired = constrainBinocularDifference &&
+                                   leftPupilReliable && rightPupilReliable;
+            if (constrainDesired)
+                ConstrainNormalBinocularDifference(ref desiredLeftX, ref desiredRightX);
             leftX = MoveTowards(_lastOutputLeftX, desiredLeftX, RecoveryStepPerFrame);
             rightX = MoveTowards(_lastOutputRightX, desiredRightX, RecoveryStepPerFrame);
             y = MoveTowards(_lastOutputY, desiredY, RecoveryStepPerFrame);
@@ -957,6 +1021,11 @@ public class EyeProcessingPipeline(
                 NearlyEqual(rightX, desiredRightX) &&
                 NearlyEqual(y, desiredY))
                 Enter(EyeState.Open);
+
+            // The blend starts from separately held left/right values and each eye steps
+            // independently, so re-apply the limit to the emitted pair.
+            if (constrainDesired)
+                ConstrainNormalBinocularDifference(ref leftX, ref rightX);
         }
 
         private float RecoveryBlend(int blendFrames)
@@ -979,6 +1048,7 @@ public class EyeProcessingPipeline(
             float? trainedConvergence,
             bool stabilizeEyes,
             bool applyConvergenceOutput,
+            bool convergencePupilVisible,
             float temporalDeltaSeconds)
         {
             if (!trainedConvergence.HasValue)
@@ -995,7 +1065,17 @@ public class EyeProcessingPipeline(
             // Capture evidence before replacing an unavailable pupil. It is used only to confirm
             // the separately trained convergence head; it is never sent directly to the avatar.
             var gazeEvidence = leftX - rightX;
-            if (_convergenceActive)
+            if (!convergencePupilVisible)
+            {
+                // No clearly visible pupil: neither start nor sustain convergence. Leaving
+                // immediately (rather than after the usual release streak) stops a false
+                // positive from holding the eyes crossed; the amount still eases back to zero
+                // at the normal blend rate below, so the output does not snap.
+                _convergenceActive = false;
+                _convergenceEnterFrames = 0;
+                _convergenceExitFrames = 0;
+            }
+            else if (_convergenceActive)
             {
                 _convergenceEnterFrames = 0;
                 _convergenceExitFrames =
@@ -1109,10 +1189,24 @@ public class EyeProcessingPipeline(
             rightX = midpoint - constrainedDifference / 2.0f;
         }
 
+        // Clamps one eye relative to its live partner, leaving the partner untouched. The limits
+        // match ConstrainNormalBinocularDifference: difference = leftX - rightX, positive = inward.
+        private static float ConstrainToPartnerEye(float partnerX, float x, bool isLeftEye) =>
+            isLeftEye
+                ? Math.Clamp(
+                    x,
+                    partnerX - MaximumNormalOutwardDifference,
+                    partnerX + MaximumNormalInwardDifference)
+                : Math.Clamp(
+                    x,
+                    partnerX - MaximumNormalInwardDifference,
+                    partnerX + MaximumNormalOutwardDifference);
+
         private static bool UpdatePupilReliability(
             bool wasReliable,
             float? visibility,
             bool immediateMissing,
+            int lossConfirmationFrames,
             ref int missingFrames)
         {
             if (!visibility.HasValue)
@@ -1133,8 +1227,8 @@ public class EyeProcessingPipeline(
                 }
 
                 missingFrames = Math.Min(
-                    missingFrames + 1, PupilLossConfirmationFrames);
-                return missingFrames < PupilLossConfirmationFrames;
+                    missingFrames + 1, lossConfirmationFrames);
+                return missingFrames < lossConfirmationFrames;
             }
 
             missingFrames = 0;
