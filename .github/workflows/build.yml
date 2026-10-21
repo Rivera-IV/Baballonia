@@ -14,7 +14,7 @@ on:
       version-number:
         description: 'Version Number for Release'
         type: string
-        default: '0.1.1'
+        default: '0.1.2'
       release-name-info:
         description: 'Additional info to put at the end of the release name'
         type: string
@@ -86,7 +86,7 @@ jobs:
           RELEASE_VERSION: ${{ github.event.inputs.version-number }}
         run: |
           cd src/Baballonia.Desktop
-          version="${RELEASE_VERSION:-0.1.0}"
+          version="${RELEASE_VERSION:-0.1.2}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid Semantic Version: $version"
             exit 1
@@ -127,7 +127,7 @@ jobs:
           RELEASE_VERSION: ${{ github.event.inputs.version-number }}
         run: |
           cd src/Baballonia.Desktop
-          version="${RELEASE_VERSION:-0.1.1}"
+          version="${RELEASE_VERSION:-0.1.2}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid Semantic Version: $version"
             exit 1
