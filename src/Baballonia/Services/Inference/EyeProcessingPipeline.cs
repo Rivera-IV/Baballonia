@@ -459,6 +459,16 @@ public class EyeProcessingPipeline(
         // used to confirm it comes from the same unreliable model output. Models without
         // visibility heads are not gated.
         private const float ConvergenceMinimumPupilVisibility = 0.18f;
+
+        // Pupil visibility is an auxiliary model output. In live diagnostics it read near zero for
+        // seconds on frames where the pupil was plainly visible, which drove the long-lived
+        // BothClosed/RecoverBoth states and froze the output while the eyes were moving. When both
+        // lids are open and the two independent camera views report agreeing gaze, the gaze is
+        // corroborated and low visibility is not allowed to mark either pupil missing. Eyes that
+        // disagree (blink transitions, a genuinely lost pupil, convergence) keep the original
+        // visibility behavior. Differences are in the normalized -1..1 gaze range.
+        private const float PupilCorroborationTolerance = 0.30f;
+        private const float PupilCorroboratedVisibility = 0.5f;
         private const float ConvergenceEnter = 0.32f;
         private const float ConvergenceExit = 0.20f;
         // The trained head sometimes remains high during ordinary gaze. Confirm it with the two
@@ -545,14 +555,23 @@ public class EyeProcessingPipeline(
 
             var wasLeftPupilReliable = _leftPupilReliable;
             var wasRightPupilReliable = _rightPupilReliable;
-            var immediateLeftPupilMissing = IsPupilMissing(immediateLeftPupilVisibility);
-            var immediateRightPupilMissing = IsPupilMissing(immediateRightPupilVisibility);
+            var pupilGazeCorroborated = leftLid > CoveredOpenness &&
+                                        rightLid > CoveredOpenness &&
+                                        MathF.Abs(leftX - rightX) <= PupilCorroborationTolerance;
+            // Only the reliability decisions below use the corroborated values. The convergence
+            // gate further down deliberately keeps the model's original visibility.
+            var reliableLeftVisibility = Corroborate(leftPupilVisibility, pupilGazeCorroborated);
+            var reliableRightVisibility = Corroborate(rightPupilVisibility, pupilGazeCorroborated);
+            var immediateLeftPupilMissing = IsPupilMissing(
+                Corroborate(immediateLeftPupilVisibility, pupilGazeCorroborated));
+            var immediateRightPupilMissing = IsPupilMissing(
+                Corroborate(immediateRightPupilVisibility, pupilGazeCorroborated));
             var leftPartnerMissing = immediateRightPupilMissing ||
-                                     IsPupilMissing(rightPupilVisibility) ||
+                                     IsPupilMissing(reliableRightVisibility) ||
                                      rightLid <= CoveredOpenness ||
                                      !wasRightPupilReliable;
             var rightPartnerMissing = immediateLeftPupilMissing ||
-                                      IsPupilMissing(leftPupilVisibility) ||
+                                      IsPupilMissing(reliableLeftVisibility) ||
                                       leftLid <= CoveredOpenness ||
                                       !wasLeftPupilReliable;
             var leftLossConfirmationFrames = leftPartnerMissing
@@ -569,7 +588,7 @@ public class EyeProcessingPipeline(
             else
             {
                 _leftPupilReliable = UpdatePupilReliability(
-                    wasLeftPupilReliable, leftPupilVisibility,
+                    wasLeftPupilReliable, reliableLeftVisibility,
                     immediateLeftPupilMissing,
                     leftLossConfirmationFrames,
                     ref _leftPupilMissingFrames);
@@ -582,7 +601,7 @@ public class EyeProcessingPipeline(
             else
             {
                 _rightPupilReliable = UpdatePupilReliability(
-                    wasRightPupilReliable, rightPupilVisibility,
+                    wasRightPupilReliable, reliableRightVisibility,
                     immediateRightPupilMissing,
                     rightLossConfirmationFrames,
                     ref _rightPupilMissingFrames);
@@ -599,17 +618,18 @@ public class EyeProcessingPipeline(
             // one-frame snap in live diagnostics when visibility crossed 0.03.
             var leftPupilAvailable = _leftPupilReliable &&
                                      !immediateLeftPupilMissing &&
-                                     !IsPupilMissing(leftPupilVisibility);
+                                     !IsPupilMissing(reliableLeftVisibility);
             var rightPupilAvailable = _rightPupilReliable &&
                                       !immediateRightPupilMissing &&
-                                      !IsPupilMissing(rightPupilVisibility);
+                                      !IsPupilMissing(reliableRightVisibility);
 
             UpdateState(
                 leftX, rightX, y, leftLid, rightLid,
                 _leftPupilReliable, _rightPupilReliable,
                 leftPupilAvailable, rightPupilAvailable,
                 !wasLeftPupilReliable && _leftPupilReliable,
-                !wasRightPupilReliable && _rightPupilReliable);
+                !wasRightPupilReliable && _rightPupilReliable,
+                pupilGazeCorroborated);
 
             // The normal binocular limit is only applied to models with a trained convergence head,
             // exactly as in the Open state. Recovery blending must not bypass it.
@@ -720,8 +740,14 @@ public class EyeProcessingPipeline(
             bool leftPupilAvailable,
             bool rightPupilAvailable,
             bool leftPupilRecovered,
-            bool rightPupilRecovered)
+            bool rightPupilRecovered,
+            bool gazeCorroborated)
         {
+            // A squinting or noisy lid head can sit below the full-reopening threshold for seconds
+            // while both eyes are plainly open. When both lids are uncovered and the two eyes'
+            // gaze agrees, that is accepted as reopened for the BothClosed/RecoverBoth exits.
+            var lidsReopened = (leftLid >= RecoveredOpenness && rightLid >= RecoveredOpenness) ||
+                               gazeCorroborated;
             var leftCovered = leftLid <= CoveredOpenness;
             var rightCovered = rightLid <= CoveredOpenness;
             var leftVisible = leftLid >= SourceVisibleOpenness && leftPupilAvailable;
@@ -792,9 +818,7 @@ public class EyeProcessingPipeline(
                     break;
 
                 case EyeState.BothClosed:
-                    if (leftLid >= RecoveredOpenness &&
-                        rightLid >= RecoveredOpenness &&
-                        (leftPupilReliable || rightPupilReliable))
+                    if (lidsReopened && (leftPupilReliable || rightPupilReliable))
                         // Even if only one pupil is recognized first, release it through the same
                         // guarded blend. Entering Open immediately exposed a stale filter value and
                         // caused the measured full-range pupil snap after a blink.
@@ -835,9 +859,7 @@ public class EyeProcessingPipeline(
                         EnterCandidate(EyeState.RightWinkCandidate);
                     else
                         CountBothRecovery(
-                            leftLid >= RecoveredOpenness &&
-                            rightLid >= RecoveredOpenness &&
-                            (leftPupilReliable || rightPupilReliable));
+                            lidsReopened && (leftPupilReliable || rightPupilReliable));
                     break;
             }
 
@@ -1188,6 +1210,11 @@ public class EyeProcessingPipeline(
             leftX = midpoint + constrainedDifference / 2.0f;
             rightX = midpoint - constrainedDifference / 2.0f;
         }
+
+        private static float? Corroborate(float? visibility, bool corroborated) =>
+            corroborated && visibility.HasValue
+                ? MathF.Max(visibility.Value, PupilCorroboratedVisibility)
+                : visibility;
 
         // Clamps one eye relative to its live partner, leaving the partner untouched. The limits
         // match ConstrainNormalBinocularDifference: difference = leftX - rightX, positive = inward.
