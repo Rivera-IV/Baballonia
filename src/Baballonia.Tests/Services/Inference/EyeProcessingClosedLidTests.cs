@@ -918,6 +918,30 @@ public class EyeProcessingClosedLidTests
     }
 
     [TestMethod]
+    public void AgreeingOpenEyeGazeIsNotFrozenByLowPupilVisibility()
+    {
+        using var pipeline = CreatePipeline();
+        var open = CreateExpressions(0.5f, 0.5f, 0, 0, 0, 0, 0, 0, 0);
+        Process(pipeline, open);
+
+        // Both lids are open and both eyes report nearly the same gaze, but the visibility heads
+        // read near zero. The corroborated gaze must keep moving the output instead of freezing it.
+        OrderedFloatMap? values = null;
+        for (var frame = 0; frame < 30; frame++)
+        {
+            values = CreateExpressions(
+                0.7f, 0.65f, 0, 0, 0, 0, 0, 0, 0,
+                leftPupilVisibility: 0.001f,
+                rightPupilVisibility: 0.001f);
+            Process(pipeline, values);
+        }
+        Assert.IsNotNull(values);
+
+        Assert.IsTrue(values["/leftEyeX"] > 0.25f);
+        Assert.IsTrue(values["/rightEyeX"] > 0.2f);
+    }
+
+    [TestMethod]
     public void BootstrapModelWithoutWidenOrSquintStillProcessesGazeAndLids()
     {
         string[] keys =
